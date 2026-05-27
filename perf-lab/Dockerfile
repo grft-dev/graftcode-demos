@@ -1,5 +1,5 @@
-# Build stage
-FROM node:18-alpine AS build
+# Build stage (Node 22 — Vite 7 requires Node 20.19+/22.12+)
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -22,14 +22,18 @@ RUN if [ -n "$NPM_AUTH_TOKEN" ] && [ -n "$GRAFTCODE_REGISTRY" ]; then \
 
 COPY . .
 
-ARG VITE_GRAFT_WS_URL=ws://localhost:5001/ws
-ARG VITE_REST_URL=http://localhost:8090
-ARG VITE_GRPC_URL=http://localhost:5004
+# Backend URLs are baked in at build time. The deploy script passes the deployed
+# Container App FQDNs here (after the backends are up).
+ARG VITE_REST_URL=https://localhost:8090
+ARG VITE_GRPC_URL=https://localhost:5005
+ARG VITE_GRAFT_WS_URL=ws://localhost:5000/ws
 ENV VITE_GRAFT_WS_URL=$VITE_GRAFT_WS_URL \
     VITE_REST_URL=$VITE_REST_URL \
     VITE_GRPC_URL=$VITE_GRPC_URL
 
-RUN npm run build
+# --logLevel warn suppresses Vite's info logs (which include a "✓" character that
+# crashes the Azure CLI's log streamer on non-UTF-8 Windows consoles).
+RUN npm run build -- --logLevel warn
 
 # Production stage
 FROM nginx:alpine

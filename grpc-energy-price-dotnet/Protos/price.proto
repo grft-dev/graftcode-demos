@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option csharp_namespace = "EnergyPriceGrpc";
+
+package energyprice;
+
+service PriceService {
+  // Trivial unary call (single number) — used by the original benchmark.
+  rpc GetPrice(GetPriceRequest) returns (GetPriceResponse);
+
+  // Large payload: one unary call returns `count` price points. This is where
+  // protobuf's compact binary encoding can beat REST/JSON.
+  rpc GetPriceHistory(GetPriceHistoryRequest) returns (GetPriceHistoryResponse);
+
+  // Server streaming: the server streams `count` price points one at a time
+  // over a single HTTP/2 stream — gRPC's signature advantage over REST.
+  rpc StreamPrices(StreamPricesRequest) returns (stream PricePoint);
+}
+
+message GetPriceRequest {}
+
+message GetPriceResponse {
+  double price = 1;
+}
+
+message GetPriceHistoryRequest {
+  int32 count = 1;
+}
+
+message GetPriceHistoryResponse {
+  repeated PricePoint points = 1;
+}
+
+message StreamPricesRequest {
+  int32 count = 1;
+}
+
+// A reasonably "fat" record so the JSON-vs-protobuf size/parse difference is real.
+message PricePoint {
+  int64 timestamp = 1;
+  double price = 2;
+  double low = 3;
+  double high = 4;
+  double average = 5;
+  string currency = 6;
+  string region = 7;
+  string source = 8;
+}

@@ -1,9 +1,0 @@
-node_modules
-*.log
-.env
-.git
-.gitignore
-README.md
-proto
-buf.yaml
-buf.gen.yaml

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService'
 import { Button, Checkbox, ProgressIndicator, Select } from '@graftcode/design-system'
-import { callGrpcGetPrice } from './grpcClient'
+import { callGrpcGetPrice, callGrpcGetPriceHistory, streamGrpcPrices } from './grpcClient'
 
 
 
@@ -60,9 +60,52 @@ function App() {
   const [cloudProvider, setCloudProvider] = useState('Azure')
   const [integrationTech, setIntegrationTech] = useState('REST')
 
-  const computeTotalTime = (samples) => {
-    if (!samples || samples.length === 0) return null
-    return Math.round(samples.reduce((sum, time) => sum + time, 0))
+  // Large-payload / streaming comparison state
+  const payloadCountOptions = [
+    { type: 'item', value: '1000', label: '1,000 points' },
+    { type: 'item', value: '5000', label: '5,000 points' },
+    { type: 'item', value: '20000', label: '20,000 points' },
+    { type: 'item', value: '50000', label: '50,000 points' },
+  ]
+  const [payloadCount, setPayloadCount] = useState(5000)
+  const [isRunningPayload, setIsRunningPayload] = useState(false)
+  const [restHistoryMs, setRestHistoryMs] = useState(null)
+  const [restHistoryKb, setRestHistoryKb] = useState(null)
+  const [grpcHistoryMs, setGrpcHistoryMs] = useState(null)
+  const [grpcStreamMs, setGrpcStreamMs] = useState(null)
+
+  const runPayloadComparison = async () => {
+    setIsRunningPayload(true)
+    setRestHistoryMs(null)
+    setRestHistoryKb(null)
+    setGrpcHistoryMs(null)
+    setGrpcStreamMs(null)
+    try {
+      const restHost = import.meta.env.VITE_REST_URL ?? 'https://localhost:8090'
+      const grpcBase = import.meta.env.VITE_GRPC_URL ?? 'https://localhost:5005'
+
+      // REST: one GET returning a big JSON array. Read AND parse into objects so
+      // it's apples-to-apples with gRPC (which decodes protobuf into objects).
+      let t = performance.now()
+      const resp = await fetch(`${restHost}/api/EnergyPrice/history?count=${payloadCount}`)
+      const text = await resp.text()
+      const restPoints = JSON.parse(text)
+      void restPoints.length
+      setRestHistoryMs(Math.round(performance.now() - t))
+      setRestHistoryKb(Math.round(text.length / 1024))
+
+      // gRPC unary: one call returning a repeated protobuf message (decoded to objects).
+      t = performance.now()
+      await callGrpcGetPriceHistory(grpcBase, payloadCount)
+      setGrpcHistoryMs(Math.round(performance.now() - t))
+
+      // gRPC server streaming: points arrive one at a time over one HTTP/2 stream.
+      t = performance.now()
+      await streamGrpcPrices(grpcBase, payloadCount)
+      setGrpcStreamMs(Math.round(performance.now() - t))
+    } finally {
+      setIsRunningPayload(false)
+    }
   }
 
   const getEstimatedNetworkLatency = () => {
@@ -149,7 +192,6 @@ function App() {
       setIsTesting(true)
       setElapsedMs(null)
       setProgressGraft(0)
-      const perCall = []
       const startTime = performance.now()
       for (let iterationIndex = 0; iterationIndex < NUM_CALLS; iterationIndex += 1) {
         await EnergyPriceService.GetPrice()
@@ -195,7 +237,7 @@ function App() {
       setElapsedGrpcMs(null)
       setProgressGrpc(0)
       const startTime = performance.now()
-      const grpcBase = import.meta.env.VITE_GRPC_URL ?? 'http://localhost:5004'
+      const grpcBase = import.meta.env.VITE_GRPC_URL ?? 'https://localhost:5005'
       for (let iterationIndex = 0; iterationIndex < NUM_CALLS; iterationIndex += 1) {
         await callGrpcGetPrice(grpcBase)
         if ((iterationIndex + 1) % 10 === 0 || iterationIndex + 1 === NUM_CALLS) {
@@ -423,6 +465,51 @@ function App() {
           </>
         ) : (
           <p className="muted">Run tests to compare results.</p>
+        )}
+      </section>
+
+      <section className="payload-comparison">
+        <h3>Large Payload &amp; Streaming (REST vs gRPC, same .NET runtime)</h3>
+        <p>
+          One call returning many price points. gRPC sends a <strong>~49% smaller</strong> binary
+          protobuf payload than REST/JSON for the same data — but on <strong>localhost</strong> that
+          size win saves ~no time (loopback bandwidth is unlimited), and decoding is CPU-bound where
+          the browser&apos;s native <code>JSON.parse</code> beats JS protobuf decoding. So here REST
+          usually wins. gRPC&apos;s payload advantage shows on a real, bandwidth/latency-limited
+          network (e.g. a deployed environment), where moving half the bytes is a real time saving.
+        </p>
+        <div className="cost-controls">
+          <div className="control-group">
+            <Select
+              id="payload-count-select"
+              label="Points per call:"
+              value={String(payloadCount)}
+              options={payloadCountOptions}
+              onValueChange={(value) => setPayloadCount(Number(value))}
+            />
+          </div>
+          <Button variant="primary" onClick={runPayloadComparison} disabled={isRunningPayload}>
+            {isRunningPayload ? 'Running…' : 'Run comparison'}
+          </Button>
+        </div>
+
+        <div className="summary">
+          <div>
+            REST (JSON): {restHistoryMs !== null ? `${restHistoryMs} ms` : '—'}
+            {restHistoryKb !== null ? ` (${restHistoryKb} KB)` : ''}
+          </div>
+          <div>gRPC unary (protobuf): {grpcHistoryMs !== null ? `${grpcHistoryMs} ms` : '—'}</div>
+          <div>gRPC server-streaming: {grpcStreamMs !== null ? `${grpcStreamMs} ms` : '—'}</div>
+        </div>
+
+        {(restHistoryMs !== null && grpcHistoryMs !== null) && (
+          <div className="callout">
+            <strong>
+              {grpcHistoryMs < restHistoryMs
+                ? `gRPC unary is ${(((restHistoryMs - grpcHistoryMs) / restHistoryMs) * 100).toFixed(1)}% faster than REST`
+                : `REST is ${(((grpcHistoryMs - restHistoryMs) / grpcHistoryMs) * 100).toFixed(1)}% faster than gRPC unary`}
+            </strong>
+          </div>
         )}
       </section>
 
