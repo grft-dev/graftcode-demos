@@ -20,9 +20,9 @@
   font: inherit;
   padding: 0.45rem 0.6rem;
   border-radius: 8px;
-  border: 1px solid #475569;
-  background: #1e293b;
-  color: inherit;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
 }
 
 .ds-progress {
