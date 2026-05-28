@@ -1,0 +1,40 @@
+/* Minimal styles for the stubbed @graftcode/design-system components. */
+.ds-btn {
+  font: inherit;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+.ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ds-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.ds-btn-primary { background: #4f46e5; color: #fff; }
+.ds-btn-secondary { background: #334155; color: #fff; }
+.ds-btn-outlined { background: transparent; border-color: #64748b; color: inherit; }
+
+.ds-checkbox { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+
+.ds-select { display: inline-flex; flex-direction: column; gap: 0.25rem; }
+.ds-select select {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+}
+
+.ds-progress {
+  width: 100%;
+  height: 8px;
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ds-progress-bar {
+  height: 100%;
+  background: #22c55e;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}

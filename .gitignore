@@ -15,6 +15,9 @@ Thumbs.db
 .npmrc
 !.npmrc.example
 
+# Local TLS certificates (for HTTP/2 demo)
+certs/
+
 # .NET
 bin/
 obj/
@@ -60,3 +63,11 @@ htmlcov/
 # Logs
 *.log
 logs/
+
+# Binary / build artefacts (electric-company-be)
+*.zip
+uploads/
+electric-company-be/Binaries/
+electric-company-be/GMA/
+electric-company-be/GVFE/
+_Hypertube*.txt
