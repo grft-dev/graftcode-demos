@@ -142,6 +142,37 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - Frontend (JS/TS): install via npm command from gg output; set `GraftConfig.host = "wss://<host>/ws"`.
 
+### Consuming a published graft — practical notes [VERIFIED this run]
+- Get the install command from Vision `/nuget` (live GUID), add the `https://grft.dev/<GUID>__free`
+  feed to THAT project's `NuGet.config` (keep `nuget.org` too), and add the PackageReference.
+- The graft package ships a real reference DLL at `lib/netX/<pkg>.dll` and depends on
+  `Hypertube.Netcore.Sdk` (which carries the runtime `Binaries.zip`). There is NO source / no Roslyn
+  source-generator, so there are no `.cs`/`.d.ts` files to read for .NET — use Vision `/libraries`
+  for the contract. (A `.d.ts` only exists for the *npm* graft, and only if YOUR own service was
+  grafted — it is not the remote contract.)
+- `GraftConfig` exposes PascalCase STATIC FIELDS (not properties/methods): `Host` (e.g.
+  `wss://<host>/ws`), `Stateless` (bool), `Module`. Set BOTH `Host` and `Stateless = true` for a
+  stateless consumer so the whole nested DTO returns by value in ONE round-trip. This matters a lot
+  when the upstream is slow (free dyno cold start) or the DTO is deeply nested — otherwise each
+  nested getter is a separate network call.
+- Public method names and DTO shapes may differ from what you'd assume (e.g. the lookup was
+  `GetWeatherForecast(string query, int days, string lang)` returning a nested WeatherAPI-style
+  `Weather { location, current{condition{...}}, forecast }`, NOT a flat `GetCurrentWeather`). Always
+  read the real names from `/libraries`; map them onto your own flat DTO in the facade.
+- DTO field names mirror the producer verbatim (here snake_case: `temp_c`, `feelslike_c`,
+  `condition.text`, `is_day` as int 0/1). Don't assume PascalCase.
+
+### Name-collision guard
+- If your own service assembly shares a name with the remote one (both become
+  `graft.nuget.<name>` / namespace `graft.nuget.<Name>`), they are still distinct artifacts (different
+  GUID/registry). In the consuming file use an alias to disambiguate from your own namespace, e.g.
+  `using Graft = graft.nuget.WeatherService;` then call `Graft.WeatherProvider.GetWeatherForecast(...)`.
+
+### Don't pollute a grft.dev-pinned project
+- The grft.dev feed serves only grafts — it 404s on normal NuGet packages. If you need a helper/probe
+  project (e.g. for reflection), give it its OWN `NuGet.config` pinned to `nuget.org`, and keep it
+  OUTSIDE the service library folder (a classlib globs `.cs` recursively → CS8805).
+
 ## Resilience for remote methods
 - Single `static HttpClient` with a sane `Timeout`; **retry with backoff** on timeouts/5xx
   (e.g. Open-Meteo intermittently returns `502`); consider a **fallback source**; throw clear
@@ -174,5 +205,8 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
   stickiness and handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions. Don't skip `GraftConfig.Host` on the consumer.
 - Don't nest consumer/test projects inside the service library folder.
+- Don't reverse-engineer a published graft via reflection / MetadataLoadContext / decompilation /
+  build-error iteration when Vision `/libraries` + `/nuget` give the contract and install command
+  directly. Reach for reflection only if those routes are genuinely unavailable.
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.

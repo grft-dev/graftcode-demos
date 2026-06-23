@@ -35,6 +35,30 @@ the Graftcode approach up front, before the first file is written.
   imports, or config field names — copy them from `gg` logs / Graftcode Vision. On the consumer set
   `GraftConfig.host` (`.Host` on .NET).
 
+## Discovering an already-published graft (source of truth, do this FIRST)
+When the user points you at a Graftcode Vision deployment (e.g. https://<host>/), DO NOT decompile,
+reflect, or iterate on compiler errors to learn its contract. The Vision host exposes machine-readable
+routes — fetch them directly:
+- `GET https://<host>/libraries`  → full UGM (Unified Graft Model) JSON: every TYPE_DEF, STATIC_METHOD
+  (with PARAMETERS_ARRAY: param types + names), INSTANCE_FIELD (name + type + getter/setter), arrays
+  (TYPE_USAGE_ARRAY) and nested DTOs. This is the complete contract.
+- `GET https://<host>/nuget`  → exact `dotnet add package -s https://grft.dev/<GUID>__free <pkg> --version <v>`
+- `GET https://<host>/npm`    → exact `npm install --registry https://grft.dev/<GUID>__free <pkg>@<v>`
+- `GET https://<host>/pypi`   → exact pip/`--index-url` command
+  (Maven/RubyGems/Composer equivalents are also printed in `gg` logs.)
+- The root `/` is a sign-in-gated SPA; fetching it returns an empty shell — never rely on it.
+These routes (and `gg` logs) are the ONLY allowed source for registry URL/GUID, package name, method
+signatures and DTO field names — keep the existing "never guess" rule, but treat `/libraries` + the
+language route as the authoritative way to satisfy it.
+### Reading UGM JSON quickly
+- `STATIC_METHOD` payload = [name, return TYPE_USAGE, _, PARAMETERS_ARRAY].
+- `INSTANCE_FIELD` payload = [name, TYPE_USAGE, SETTER, GETTER].
+- `TYPE_USAGE_PRIMITIVE` payload = [_, namespace, typeName, typeCode, assembly, version];
+  observed typeCode map: 1=String, 2=Int32, 7=Int64, 8=Double, 0=complex/custom type.
+- `TYPE_USAGE_ARRAY` = plain `T[]`.
+- The GUID rotates on every gateway restart (no `--projectKey`), so always pull the CURRENT command
+  from `/nuget` (or the matching language route) rather than reusing an old GUID.
+
 ## Language-specific rules (read the matching one for full detail)
 Pick the detailed rule for the language being used; each expands the universal rules above with
 language-specific types, hosting, and consumer snippets:
