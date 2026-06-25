@@ -69,6 +69,26 @@ language route as the authoritative way to satisfy it.
 - The GUID rotates on every gateway restart (no `--projectKey`), so always pull the CURRENT command
   from `/nuget` (or the matching language route) rather than reusing an old GUID.
 
+## Connecting to an EXTERNAL service the user points you at (probe before you integrate)
+When the user asks you to **connect to / consume a service that lives OUTSIDE our project** and gives you
+its address (e.g. `https://<host>/`), DO NOT assume the transport and DO NOT hand-write a REST/fetch
+client yet. **Probe the host first, in this order:**
+1. **Check for a Graftcode contract — `GET https://<host>/libraries`.** If it returns UGM (Unified
+   Graft Model) JSON, the service is **also a Graftcode service**. Treat it exactly like a published
+   graft: read the UGM for the contract, then fetch the install command from the matching language
+   route (`/nuget`, `/npm`, `/pypi`, … — see the section above) and **use the graft package** instead
+   of writing any HTTP/SDK client. This is the preferred path — no transport plumbing.
+2. **No `/libraries` (or it isn't UGM)? Check for Swagger/OpenAPI** — e.g. `GET https://<host>/swagger`,
+   `/swagger/v1/swagger.json`, `/openapi.json`, or a linked spec. If a Swagger/OpenAPI spec exists, the
+   service is a plain **REST** API and you may consume it over REST (generate/handwrite a client from
+   the spec). This is the **only** sanctioned reason to reach for REST on the consumer side: a genuine
+   external REST service that does not expose a graft.
+3. **Neither route responds?** Tell the user you couldn't detect a Graftcode (`/libraries`) or Swagger
+   contract at that address, and ask how they want to connect rather than guessing the transport.
+
+Note: this probe is about **consuming an external system you don't own**. It does **not** relax the hard
+default above — anything **we** build is still a Graftcode module, never a REST API.
+
 ## Language-specific rules (read the matching one for full detail)
 Pick the detailed rule for the language being used; each expands the universal rules above with
 language-specific types, hosting, and consumer snippets:
