@@ -121,12 +121,50 @@ in env config (never hardcode).
 1. Open the relevant Gateway/Vision output; copy the generated **npm install** command; install it.
 2. Import the generated class/method **exactly** as shown; call it like local code.
 3. Configure host/gateway only as the generated package + docs require.
-4. Smoke-test the call. Do not build a custom SDK or REST client; don't hardcode guessed names.
+4. Smoke-test the call **inside the real consumer project** — not in a throwaway project. Do not build a
+   custom SDK or REST client; don't hardcode guessed names.
 
-```ts
-// smoke test
-const price = await EnergyPriceCalculator.getPrice();
-console.log(price);
+```js
+// frontend/scripts/smoke.mjs — ONE reusable script in the target project (keep it; don't delete)
+import { GraftConfig, EnergyPriceCalculator } from "<generated-graft-package>";
+GraftConfig.host = process.env.GRAFT_HOST ?? "wss://<host>/ws";
+GraftConfig.stateless = true;
+console.log(await EnergyPriceCalculator.getPrice());
+```
+
+### ⛔ HARD RULE — no throwaway probe project; contract comes from `/libraries`
+- **Never** create a separate scratch/probe project to learn the contract or check connectivity. Read
+  the method names, DTO fields, and types from the UGM (`GET /libraries`); verify the call **directly in
+  the real frontend/service**. If a smoke test is needed, it's ONE reusable script like the one above.
+
+### Installing grafts from npm (each on its own GUID registry) [VERIFIED gotcha]
+- Each graft is a **separate package in the `@graft` scope on its OWN GUID registry**. Install **each one
+  separately** with **its own `--registry`** (copy the exact command from the `gg` logs):
+  `npm install --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
+- Afterwards do **NOT** run a plain `npm install` that would resolve `@graft` from npmjs (→ 404). The
+  **lockfile keeps the resolved `grft.dev` URLs**, so a reinstall **from the lockfile** is fine.
+
+## ⛔ HARD RULE / anti-pattern — bind the generated DTO directly (no proxy, no `await` on accessors)
+This is the #1 TS time-sink. The Graft generator emits DTOs whose field accessors (`get_X()` /
+`set_X(value)`) are **not `async`** and are typed **`T | Promise<T>`**. In **stateless** mode they
+resolve **synchronously** (the whole DTO already arrived by value).
+- **Return and bind the GENERATED graft object DIRECTLY.** Do **NOT** define a parallel
+  interface/type (`...View`), do **NOT** copy fields into a plain object, do **NOT** write a mapper.
+- **Do NOT `await` the accessors.** Only `await` the **top-level service method** (the network
+  round-trip). After it resolves, every `get_X()` / `set_X()` is synchronous.
+- In TS the accessor return type is `T | Promise<T>`; narrow it with a **cast `as T`** in JSX —
+  NOT with `await`, NOT with a custom mapper.
+
+```tsx
+// ✅ DO THIS — bind the generated object, cast the getter, no await on accessors
+const weather = await WeatherProvider.GetCurrentWeather(city); // only awaited boundary
+return <div>{weather.get_Location() as string}: {weather.get_TempC() as number}°C</div>;
+```
+```tsx
+// ❌ DO NOT DO THIS — parallel "View" type + awaited accessor + hand-copy
+interface WeatherView { location: string; tempC: number; }      // ❌ don't re-model the DTO
+const location = await weather.get_Location();                   // ❌ don't await accessors
+const view: WeatherView = { location, tempC: await weather.get_TempC() }; // ❌ don't copy/map
 ```
 
 ## Stateless mode & binding a Graft DTO straight to the UI
@@ -190,14 +228,15 @@ function applyFeelsLike(value: number) {
   forceRender((n) => n + 1);  // re-render so get_FeelsLikeC() reflects the change
 }
 
-// render — read fields synchronously, no await, no copy:
-return <div>{data?.get_Location()} {data?.get_FeelsLikeC()}°C</div>;
+// render — read fields synchronously, no await, no copy; cast `T | Promise<T>` → T:
+return <div>{data?.get_Location() as string} {data?.get_FeelsLikeC() as number}°C</div>;
 ```
 
 ### Browser (Vite) consumer notes
-The generated client pulls in Node built-ins. For a browser build add `vite-plugin-node-polyfills`
-and alias `crypto` to a tiny shim exporting `randomUUID` via `globalThis.crypto.randomUUID`. The
-generated package + Vision output remain the source of truth for package name, import path, and host.
+The generated client (e.g. `hypertube-nodejs-sdk`) pulls in **Node built-ins**, so a browser build
+needs **`vite-plugin-node-polyfills`**. Also alias `crypto` to a tiny shim exporting `randomUUID` via
+`globalThis.crypto.randomUUID`. The generated package + Vision output remain the source of truth for
+package name, import path, and host.
 
 ## Project structure
 ```txt
@@ -224,10 +263,13 @@ invent package names / registry URLs / imports / config names; skip Vision verif
 Don't default to instance/stateful methods when a `static` stateless facade works — and don't ship a
 stateful contract without warning about single-instance pinning / session stickiness and handling the
 remote object no longer existing on the callee.
-On the consumer side, don't re-model a Graft DTO as your own interface or copy its fields into a plain
-object — reuse the generated type and bind the Graft object directly. In stateless mode don't `await`
-field accessors (`get_X()` / `set_X()`); they return values synchronously — only the top-level service
-call is awaited.
+On the consumer side, don't re-model a Graft DTO as your own interface (`...View`) or copy its fields
+into a plain object — reuse the generated type and bind the Graft object directly. In stateless mode
+don't `await` field accessors (`get_X()` / `set_X()`); they return values synchronously (typed
+`T | Promise<T>`) — narrow with a cast `as T` in JSX, and only `await` the top-level service call.
+Don't create a throwaway probe/test project to learn the contract or check connectivity (read
+`/libraries`, verify in the real project). Don't run a plain `npm install` that resolves `@graft` from
+npmjs after installing each graft from its own `--registry` (reinstall from the lockfile instead).
 
 **Final rule:** if something can be integrated via a Graft, it must not be integrated via hand-written
 REST, custom SDKs, or framework-specific API routes.
