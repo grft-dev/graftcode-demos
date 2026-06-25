@@ -69,6 +69,18 @@ language route as the authoritative way to satisfy it.
 - The GUID rotates on every gateway restart (no `--projectKey`), so always pull the CURRENT command
   from `/nuget` (or the matching language route) rather than reusing an old GUID.
 
+## ⛔ HARD RULE — NEVER create a throwaway "probe"/"test" project (wastes tokens + iterations)
+Do **NOT** spin up a separate scratch/helper/probe `.csproj`, package, or mini-app to "learn the
+contract" or to "check connectivity". This is the single biggest source of wasted tokens and loops.
+- **Learn the contract ONLY from the UGM:** `GET /libraries` gives every method name, DTO field, and
+  type. That is enough. Do **NOT** trial-compile, do **NOT** decompile/reflect, do **NOT** iterate on
+  compiler errors to discover names.
+- **Verify connectivity / the WS bridge / call correctness DIRECTLY in the real consumer** (the actual
+  service or frontend you're building), never in a new throwaway project.
+- If a smoke test is genuinely needed, write **ONE lightweight reusable script inside the target
+  project** (e.g. `frontend/scripts/smoke.mjs`) — not a disposable helper project. Keep it; don't
+  create-and-delete scratch projects.
+
 ## Connecting to an EXTERNAL service the user points you at (probe before you integrate)
 When the user asks you to **connect to / consume a service that lives OUTSIDE our project** and gives you
 its address (e.g. `https://<host>/`), DO NOT assume the transport and DO NOT hand-write a REST/fetch
@@ -205,7 +217,9 @@ and needlessly leaks into the public surface.
 4. `dotnet build <Project>.csproj` (catch compile errors).
 5. `docker build -t myservice:test .` then
    `docker run -d -p 80:80 -p 81:81 --name myservice myservice:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`
+     on gg v1.2.x. **gg v1.3.0 serves WS + Vision on the SAME port** — read the actual ports from the
+     `gg` logs instead of hardcoding 81.
 6. `docker logs <name>` → confirm `Type enabled: <Namespace>.<Class>` + `Uploading UGM successful`,
    and copy the install command (with current GUID).
 
@@ -273,6 +287,26 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
   read the real names from `/libraries`; map them onto your own flat DTO in the facade.
 - DTO field names mirror the producer verbatim (here snake_case: `temp_c`, `feelslike_c`,
   `condition.text`, `is_day` as int 0/1). Don't assume PascalCase.
+- The returned DTO type may live in a **different namespace** than the methods (e.g. methods in
+  `graft.nuget.WeatherService`, the DTO somewhere else). Use **`var` / type inference** for the result
+  instead of hardcoding the DTO's namespace — bind the generated object directly, never re-model it as
+  your own parallel type or copy its fields into a plain object.
+
+### External host, ports & GUID — runtime only needs the WS host [VERIFIED gotcha]
+- For a service behind **HTTPS** (e.g. an `onrender.com` dyno) the graft host is **`wss://<host>/ws`**
+  (port 443). Set `GraftConfig.Host = "wss://<host>/ws"` and `GraftConfig.Stateless = true` so the whole
+  nested DTO returns by value in a single round-trip.
+- **`gg` v1.3.0 serves WS and Vision on the SAME port** (logs show `ws://...:80/ws` and Vision on `:80`).
+  **Do NOT hardcode port 81 for Vision** — read the actual ports from the `gg` logs.
+- The registry **GUID rotates on every container restart** without `--projectKey`. At runtime only the
+  **WS host/port** matters, not the GUID — so just keep `GraftConfig.Host` correct. Copy the current
+  install command from the `gg` logs after each (re)start; don't reuse an old GUID.
+
+### Network & cost — free dynos cold-start [VERIFIED gotcha]
+- Free dynos cold-start slowly (a blind `curl` hung ~150s). Always pass **`--max-time`** to `curl` and
+  **warm up the root URL first** instead of waiting indefinitely.
+- In the service code that calls the external API, add **retry with backoff** so a cold upstream or a
+  transient 5xx doesn't fail the first real call.
 
 ### Name-collision guard
 - If your own service assembly shares a name with the remote one (both become
@@ -280,10 +314,35 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
   GUID/registry). In the consuming file use an alias to disambiguate from your own namespace, e.g.
   `using Graft = graft.nuget.WeatherService;` then call `Graft.WeatherProvider.GetWeatherForecast(...)`.
 
-### Don't pollute a grft.dev-pinned project
-- The grft.dev feed serves only grafts — it 404s on normal NuGet packages. If you need a helper/probe
-  project (e.g. for reflection), give it its OWN `NuGet.config` pinned to `nuget.org`, and keep it
-  OUTSIDE the service library folder (a classlib globs `.cs` recursively → CS8805).
+### ⛔ HARD RULE — no throwaway probe/test project; contract comes from `/libraries`
+- **Never** create a separate scratch/helper/probe `.csproj` to learn the contract or check
+  connectivity. Get the method names, DTO fields, and types **only** from the UGM (`GET /libraries`) —
+  do NOT trial-compile, decompile, reflect, or iterate on compiler errors. Verify the call **directly
+  in the real consumer project** (your service). If you truly need a smoke test, add ONE small reusable
+  script inside the target project, not a disposable project.
+
+### .NET package source mapping — required for clean (Docker) restore [VERIFIED gotcha]
+The grft.dev feed serves **only** grafts and returns **404 for normal packages** (`Microsoft.*`, etc.),
+which breaks `dotnet restore` in a clean container with **`NU1301`**. A local restore can succeed from
+cache and hide this — it WILL fail in Docker. In `NuGet.config` ALWAYS add **`packageSourceMapping`** so
+graft packages resolve from grft.dev and everything else from nuget.org:
+```xml
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="grft" value="https://grft.dev/<GUID>__free" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="grft">
+      <package pattern="graft.nuget.*" />
+      <package pattern="Hypertube.*" />
+    </packageSource>
+    <packageSource key="nuget.org">
+      <package pattern="*" />
+    </packageSource>
+  </packageSourceMapping>
+</configuration>
+```
 
 ## Resilience for remote methods
 - Single `static HttpClient` with a sane `Timeout`; **retry with backoff** on timeouts/5xx
@@ -320,6 +379,12 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - Don't reverse-engineer a published graft via reflection / MetadataLoadContext / decompilation /
   build-error iteration when Vision `/libraries` + `/nuget` give the contract and install command
   directly. Reach for reflection only if those routes are genuinely unavailable.
+- Don't create a throwaway probe/test `.csproj` to learn the contract or check connectivity — read
+  `/libraries` and verify in the real consumer project.
+- Don't omit `packageSourceMapping` in `NuGet.config` (restore works from local cache but fails in a
+  clean Docker build with `NU1301`).
+- Don't hardcode the DTO's namespace (use `var`) or assume PascalCase fields (producer names, often
+  snake_case, win). Don't hardcode Vision on port 81 (v1.3.0 shares the WS port).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
 
@@ -443,12 +508,50 @@ in env config (never hardcode).
 1. Open the relevant Gateway/Vision output; copy the generated **npm install** command; install it.
 2. Import the generated class/method **exactly** as shown; call it like local code.
 3. Configure host/gateway only as the generated package + docs require.
-4. Smoke-test the call. Do not build a custom SDK or REST client; don't hardcode guessed names.
+4. Smoke-test the call **inside the real consumer project** — not in a throwaway project. Do not build a
+   custom SDK or REST client; don't hardcode guessed names.
 
-```ts
-// smoke test
-const price = await EnergyPriceCalculator.getPrice();
-console.log(price);
+```js
+// frontend/scripts/smoke.mjs — ONE reusable script in the target project (keep it; don't delete)
+import { GraftConfig, EnergyPriceCalculator } from "<generated-graft-package>";
+GraftConfig.host = process.env.GRAFT_HOST ?? "wss://<host>/ws";
+GraftConfig.stateless = true;
+console.log(await EnergyPriceCalculator.getPrice());
+```
+
+### ⛔ HARD RULE — no throwaway probe project; contract comes from `/libraries`
+- **Never** create a separate scratch/probe project to learn the contract or check connectivity. Read
+  the method names, DTO fields, and types from the UGM (`GET /libraries`); verify the call **directly in
+  the real frontend/service**. If a smoke test is needed, it's ONE reusable script like the one above.
+
+### Installing grafts from npm (each on its own GUID registry) [VERIFIED gotcha]
+- Each graft is a **separate package in the `@graft` scope on its OWN GUID registry**. Install **each one
+  separately** with **its own `--registry`** (copy the exact command from the `gg` logs):
+  `npm install --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
+- Afterwards do **NOT** run a plain `npm install` that would resolve `@graft` from npmjs (→ 404). The
+  **lockfile keeps the resolved `grft.dev` URLs**, so a reinstall **from the lockfile** is fine.
+
+## ⛔ HARD RULE / anti-pattern — bind the generated DTO directly (no proxy, no `await` on accessors)
+This is the #1 TS time-sink. The Graft generator emits DTOs whose field accessors (`get_X()` /
+`set_X(value)`) are **not `async`** and are typed **`T | Promise<T>`**. In **stateless** mode they
+resolve **synchronously** (the whole DTO already arrived by value).
+- **Return and bind the GENERATED graft object DIRECTLY.** Do **NOT** define a parallel
+  interface/type (`...View`), do **NOT** copy fields into a plain object, do **NOT** write a mapper.
+- **Do NOT `await` the accessors.** Only `await` the **top-level service method** (the network
+  round-trip). After it resolves, every `get_X()` / `set_X()` is synchronous.
+- In TS the accessor return type is `T | Promise<T>`; narrow it with a **cast `as T`** in JSX —
+  NOT with `await`, NOT with a custom mapper.
+
+```tsx
+// ✅ DO THIS — bind the generated object, cast the getter, no await on accessors
+const weather = await WeatherProvider.GetCurrentWeather(city); // only awaited boundary
+return <div>{weather.get_Location() as string}: {weather.get_TempC() as number}°C</div>;
+```
+```tsx
+// ❌ DO NOT DO THIS — parallel "View" type + awaited accessor + hand-copy
+interface WeatherView { location: string; tempC: number; }      // ❌ don't re-model the DTO
+const location = await weather.get_Location();                   // ❌ don't await accessors
+const view: WeatherView = { location, tempC: await weather.get_TempC() }; // ❌ don't copy/map
 ```
 
 ## Stateless mode & binding a Graft DTO straight to the UI
@@ -512,14 +615,15 @@ function applyFeelsLike(value: number) {
   forceRender((n) => n + 1);  // re-render so get_FeelsLikeC() reflects the change
 }
 
-// render — read fields synchronously, no await, no copy:
-return <div>{data?.get_Location()} {data?.get_FeelsLikeC()}°C</div>;
+// render — read fields synchronously, no await, no copy; cast `T | Promise<T>` → T:
+return <div>{data?.get_Location() as string} {data?.get_FeelsLikeC() as number}°C</div>;
 ```
 
 ### Browser (Vite) consumer notes
-The generated client pulls in Node built-ins. For a browser build add `vite-plugin-node-polyfills`
-and alias `crypto` to a tiny shim exporting `randomUUID` via `globalThis.crypto.randomUUID`. The
-generated package + Vision output remain the source of truth for package name, import path, and host.
+The generated client (e.g. `hypertube-nodejs-sdk`) pulls in **Node built-ins**, so a browser build
+needs **`vite-plugin-node-polyfills`**. Also alias `crypto` to a tiny shim exporting `randomUUID` via
+`globalThis.crypto.randomUUID`. The generated package + Vision output remain the source of truth for
+package name, import path, and host.
 
 ## Project structure
 ```txt
@@ -546,10 +650,13 @@ invent package names / registry URLs / imports / config names; skip Vision verif
 Don't default to instance/stateful methods when a `static` stateless facade works — and don't ship a
 stateful contract without warning about single-instance pinning / session stickiness and handling the
 remote object no longer existing on the callee.
-On the consumer side, don't re-model a Graft DTO as your own interface or copy its fields into a plain
-object — reuse the generated type and bind the Graft object directly. In stateless mode don't `await`
-field accessors (`get_X()` / `set_X()`); they return values synchronously — only the top-level service
-call is awaited.
+On the consumer side, don't re-model a Graft DTO as your own interface (`...View`) or copy its fields
+into a plain object — reuse the generated type and bind the Graft object directly. In stateless mode
+don't `await` field accessors (`get_X()` / `set_X()`); they return values synchronously (typed
+`T | Promise<T>`) — narrow with a cast `as T` in JSX, and only `await` the top-level service call.
+Don't create a throwaway probe/test project to learn the contract or check connectivity (read
+`/libraries`, verify in the real project). Don't run a plain `npm install` that resolves `@graft` from
+npmjs after installing each graft from its own `--registry` (reinstall from the lockfile instead).
 
 **Final rule:** if something can be integrated via a Graft, it must not be integrated via hand-written
 REST, custom SDKs, or framework-specific API routes.

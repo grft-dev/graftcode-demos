@@ -99,7 +99,9 @@ and needlessly leaks into the public surface.
 4. `dotnet build <Project>.csproj` (catch compile errors).
 5. `docker build -t myservice:test .` then
    `docker run -d -p 80:80 -p 81:81 --name myservice myservice:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`
+     on gg v1.2.x. **gg v1.3.0 serves WS + Vision on the SAME port** — read the actual ports from the
+     `gg` logs instead of hardcoding 81.
 6. `docker logs <name>` → confirm `Type enabled: <Namespace>.<Class>` + `Uploading UGM successful`,
    and copy the install command (with current GUID).
 
@@ -167,6 +169,26 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
   read the real names from `/libraries`; map them onto your own flat DTO in the facade.
 - DTO field names mirror the producer verbatim (here snake_case: `temp_c`, `feelslike_c`,
   `condition.text`, `is_day` as int 0/1). Don't assume PascalCase.
+- The returned DTO type may live in a **different namespace** than the methods (e.g. methods in
+  `graft.nuget.WeatherService`, the DTO somewhere else). Use **`var` / type inference** for the result
+  instead of hardcoding the DTO's namespace — bind the generated object directly, never re-model it as
+  your own parallel type or copy its fields into a plain object.
+
+### External host, ports & GUID — runtime only needs the WS host [VERIFIED gotcha]
+- For a service behind **HTTPS** (e.g. an `onrender.com` dyno) the graft host is **`wss://<host>/ws`**
+  (port 443). Set `GraftConfig.Host = "wss://<host>/ws"` and `GraftConfig.Stateless = true` so the whole
+  nested DTO returns by value in a single round-trip.
+- **`gg` v1.3.0 serves WS and Vision on the SAME port** (logs show `ws://...:80/ws` and Vision on `:80`).
+  **Do NOT hardcode port 81 for Vision** — read the actual ports from the `gg` logs.
+- The registry **GUID rotates on every container restart** without `--projectKey`. At runtime only the
+  **WS host/port** matters, not the GUID — so just keep `GraftConfig.Host` correct. Copy the current
+  install command from the `gg` logs after each (re)start; don't reuse an old GUID.
+
+### Network & cost — free dynos cold-start [VERIFIED gotcha]
+- Free dynos cold-start slowly (a blind `curl` hung ~150s). Always pass **`--max-time`** to `curl` and
+  **warm up the root URL first** instead of waiting indefinitely.
+- In the service code that calls the external API, add **retry with backoff** so a cold upstream or a
+  transient 5xx doesn't fail the first real call.
 
 ### Name-collision guard
 - If your own service assembly shares a name with the remote one (both become
@@ -174,10 +196,35 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
   GUID/registry). In the consuming file use an alias to disambiguate from your own namespace, e.g.
   `using Graft = graft.nuget.WeatherService;` then call `Graft.WeatherProvider.GetWeatherForecast(...)`.
 
-### Don't pollute a grft.dev-pinned project
-- The grft.dev feed serves only grafts — it 404s on normal NuGet packages. If you need a helper/probe
-  project (e.g. for reflection), give it its OWN `NuGet.config` pinned to `nuget.org`, and keep it
-  OUTSIDE the service library folder (a classlib globs `.cs` recursively → CS8805).
+### ⛔ HARD RULE — no throwaway probe/test project; contract comes from `/libraries`
+- **Never** create a separate scratch/helper/probe `.csproj` to learn the contract or check
+  connectivity. Get the method names, DTO fields, and types **only** from the UGM (`GET /libraries`) —
+  do NOT trial-compile, decompile, reflect, or iterate on compiler errors. Verify the call **directly
+  in the real consumer project** (your service). If you truly need a smoke test, add ONE small reusable
+  script inside the target project, not a disposable project.
+
+### .NET package source mapping — required for clean (Docker) restore [VERIFIED gotcha]
+The grft.dev feed serves **only** grafts and returns **404 for normal packages** (`Microsoft.*`, etc.),
+which breaks `dotnet restore` in a clean container with **`NU1301`**. A local restore can succeed from
+cache and hide this — it WILL fail in Docker. In `NuGet.config` ALWAYS add **`packageSourceMapping`** so
+graft packages resolve from grft.dev and everything else from nuget.org:
+```xml
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="grft" value="https://grft.dev/<GUID>__free" />
+  </packageSources>
+  <packageSourceMapping>
+    <packageSource key="grft">
+      <package pattern="graft.nuget.*" />
+      <package pattern="Hypertube.*" />
+    </packageSource>
+    <packageSource key="nuget.org">
+      <package pattern="*" />
+    </packageSource>
+  </packageSourceMapping>
+</configuration>
+```
 
 ## Resilience for remote methods
 - Single `static HttpClient` with a sane `Timeout`; **retry with backoff** on timeouts/5xx
@@ -214,5 +261,11 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - Don't reverse-engineer a published graft via reflection / MetadataLoadContext / decompilation /
   build-error iteration when Vision `/libraries` + `/nuget` give the contract and install command
   directly. Reach for reflection only if those routes are genuinely unavailable.
+- Don't create a throwaway probe/test `.csproj` to learn the contract or check connectivity — read
+  `/libraries` and verify in the real consumer project.
+- Don't omit `packageSourceMapping` in `NuGet.config` (restore works from local cache but fails in a
+  clean Docker build with `NU1301`).
+- Don't hardcode the DTO's namespace (use `var`) or assume PascalCase fields (producer names, often
+  snake_case, win). Don't hardcode Vision on port 81 (v1.3.0 shares the WS port).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.

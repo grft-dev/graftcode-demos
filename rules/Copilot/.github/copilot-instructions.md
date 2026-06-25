@@ -69,6 +69,18 @@ language route as the authoritative way to satisfy it.
 - The GUID rotates on every gateway restart (no `--projectKey`), so always pull the CURRENT command
   from `/nuget` (or the matching language route) rather than reusing an old GUID.
 
+## ⛔ HARD RULE — NEVER create a throwaway "probe"/"test" project (wastes tokens + iterations)
+Do **NOT** spin up a separate scratch/helper/probe `.csproj`, package, or mini-app to "learn the
+contract" or to "check connectivity". This is the single biggest source of wasted tokens and loops.
+- **Learn the contract ONLY from the UGM:** `GET /libraries` gives every method name, DTO field, and
+  type. That is enough. Do **NOT** trial-compile, do **NOT** decompile/reflect, do **NOT** iterate on
+  compiler errors to discover names.
+- **Verify connectivity / the WS bridge / call correctness DIRECTLY in the real consumer** (the actual
+  service or frontend you're building), never in a new throwaway project.
+- If a smoke test is genuinely needed, write **ONE lightweight reusable script inside the target
+  project** (e.g. `frontend/scripts/smoke.mjs`) — not a disposable helper project. Keep it; don't
+  create-and-delete scratch projects.
+
 ## Connecting to an EXTERNAL service the user points you at (probe before you integrate)
 When the user asks you to **connect to / consume a service that lives OUTSIDE our project** and gives you
 its address (e.g. `https://<host>/`), DO NOT assume the transport and DO NOT hand-write a REST/fetch
