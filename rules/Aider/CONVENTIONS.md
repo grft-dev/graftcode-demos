@@ -572,6 +572,9 @@ console.log(await EnergyPriceCalculator.getPrice());
 - Get the install command itself from the route, not the full logs:
   `curl -sS --max-time 5 http://localhost:<mappedPort>/npm` (also the readiness check). See **Token
   discipline** in the router.
+- **After upgrading a graft to a newer version, RESTART the dev/web server** (Vite/Next/etc.). The
+  running server caches the old package from `node_modules` and HMR won't pick up the reinstalled graft
+  — stop and restart it so it re-reads the refreshed `node_modules`.
 
 ### After install, read only what you use (token discipline)
 Don't read every file in the installed package. The export list (`index.d.ts`) **plus the specific
