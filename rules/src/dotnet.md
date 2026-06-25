@@ -90,24 +90,27 @@ and needlessly leaks into the public surface.
 1. Design contract (**`static`** sync methods + primitive/string DTOs; instance only if truly stateful).
 2. `dotnet new classlib -n WeatherService`
 3. Add `Dockerfile` (below) + `.dockerignore` (`bin/`, `obj/`).
-4. `dotnet build <Project>.csproj` (catch compile errors).
-5. `docker build -t myservice:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name myservice myservice:test`
+4. `dotnet build <Project>.csproj -v q` (catch compile errors; quiet so only errors reach context).
+5. `docker build -t myservice:test . > build.log 2>&1` (read only the tail/errors, not the transcript),
+   then `docker run -d -p 80:80 -p 81:81 --name myservice myservice:test`
    - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`
      on gg v1.2.x. **gg v1.3.0 serves WS + Vision on the SAME port** — read the actual ports from the
      `gg` logs instead of hardcoding 81.
-6. `docker logs <name>` → confirm `Type enabled: <Namespace>.<Class>` + `Uploading UGM successful`,
-   and copy the install command (with current GUID).
+6. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — that's both the
+   readiness check and the exact install command (current GUID):
+   `curl -sS --max-time 5 http://localhost:80/nuget`. If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference)
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /usr/app
 COPY . /usr/app/
-RUN dotnet build
-RUN dotnet publish -c Release -o /usr/app/
+RUN dotnet build -v q
+RUN dotnet publish -c Release -o /usr/app/ -v q
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -147,6 +150,10 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 ### Consuming a published graft — practical notes [VERIFIED this run]
 - Get the install command from Vision `/nuget` (live GUID), add the `https://grft.dev/<GUID>__free`
   feed to THAT project's `NuGet.config` (keep `nuget.org` too), and add the PackageReference.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it to a file and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After
+  install, **don't read every package file** — the reference DLL's public types you actually use are
+  enough; get the rest from the UGM. Run `dotnet add`/`restore` quietly and read only errors.
 - The graft package ships a real reference DLL at `lib/netX/<pkg>.dll` and depends on
   `Hypertube.Netcore.Sdk` (which carries the runtime `Binaries.zip`). There is NO source / no Roslyn
   source-generator, so there are no `.cs`/`.d.ts` files to read for .NET — use Vision `/libraries`
@@ -261,5 +268,8 @@ graft packages resolve from grft.dev and everything else from nuget.org:
   clean Docker build with `NU1301`).
 - Don't hardcode the DTO's namespace (use `var`) or assume PascalCase fields (producer names, often
   snake_case, win). Don't hardcode Vision on port 81 (v1.3.0 shares the WS port).
+- Don't flood context: fetch `gg.deb` with `wget -q`, poll `/nuget` instead of reading full `docker
+  logs`, don't paste the whole `/libraries` UGM, and redirect long build/restore output to a file
+  (read only the tail/errors). See **Token discipline** in the router.
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
