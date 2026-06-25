@@ -114,20 +114,24 @@ class needlessly leaks into the public surface.
    if truly stateful).
 2. Create the module file(s) + `pyproject.toml` with an intentional public surface.
 3. Add a `Dockerfile` (below).
-4. `docker build --no-cache --pull -t myservice-py:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_py myservice-py:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-5. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `docker build --no-cache --pull -t myservice-py:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_py myservice-py:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+5. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID):
+   `curl -sS --max-time 5 http://localhost:80/pypi`. If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference)
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM python:3.13-bookworm
 WORKDIR /usr/app
 COPY ./energy_price_calculator.py /usr/app/energy-service/
 COPY ./pyproject.toml /usr/app/energy-service/
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -173,6 +177,10 @@ os._exit(0)
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM. Run `pip install`
+  quietly (`-q`) and read only errors.
 
 ## Resilience for remote methods
 - Single shared HTTP client (e.g. a module-level `requests.Session`/`httpx.Client`) with a sane

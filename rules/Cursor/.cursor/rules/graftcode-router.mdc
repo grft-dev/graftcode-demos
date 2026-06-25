@@ -44,8 +44,10 @@ file is written — never start REST-first and apologize/redo later.
   arrays/iterators/streams or any tech-specific collection — use a plain array of a DTO/simple type.
 - **Custom exceptions stay off the public surface.** The gateway turns them into a plain exception on
   the caller, but the message propagates — write clear messages.
-- **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory),
-  ports 80 (WS) + 81 (Vision). Use `--projectKey` for stable IDs.
+- **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory).
+  WS/service calls on port 80; on gg v1.3.0 Vision's live HTTP routes are served on the **same (WS)
+  port** — read actual ports from `gg` logs, don't assume 81. Use `--projectKey` for stable IDs. See
+  **Token discipline** below for fetching `gg.deb` quietly and waiting on the readiness route, not logs.
 - **Gateway/Vision output is the source of truth.** Never guess registry URLs, GUIDs, package names,
   imports, or config field names — copy them from `gg` logs / Graftcode Vision. On the consumer set
   `GraftConfig.host` (`.Host` on .NET).
@@ -65,14 +67,36 @@ routes — fetch them directly:
 These routes (and `gg` logs) are the ONLY allowed source for registry URL/GUID, package name, method
 signatures and DTO field names — keep the existing "never guess" rule, but treat `/libraries` + the
 language route as the authoritative way to satisfy it.
-### Reading UGM JSON quickly
-- `STATIC_METHOD` payload = [name, return TYPE_USAGE, _, PARAMETERS_ARRAY].
-- `INSTANCE_FIELD` payload = [name, TYPE_USAGE, SETTER, GETTER].
-- `TYPE_USAGE_PRIMITIVE` payload = [_, namespace, typeName, typeCode, assembly, version];
-  observed typeCode map: 1=String, 2=Int32, 7=Int64, 8=Double, 0=complex/custom type.
-- `TYPE_USAGE_ARRAY` = plain `T[]`.
-- The GUID rotates on every gateway restart (no `--projectKey`), so always pull the CURRENT command
-  from `/nuget` (or the matching language route) rather than reusing an old GUID.
+### Reading UGM JSON quickly — DON'T paste the whole blob
+`/libraries` is large JSON (tens of KB). **Never read/echo the whole blob.** Save it and `grep` only
+names/signatures (`curl -sS .../libraries -o ugm.json` then grep `STATIC_METHOD`/`INSTANCE_FIELD`/
+`TYPE_USAGE_*`). That's enough for the contract. Field meanings:
+- `STATIC_METHOD` = [name, return TYPE_USAGE, _, PARAMETERS_ARRAY].
+- `INSTANCE_FIELD` = [name, TYPE_USAGE, SETTER, GETTER].
+- `TYPE_USAGE_PRIMITIVE` = [_, namespace, typeName, typeCode, …]; typeCode: 1=String, 2=Int32, 7=Int64,
+  8=Double, 0=complex/custom type. `TYPE_USAGE_ARRAY` = plain `T[]`.
+- The GUID rotates on every gateway restart (no `--projectKey`) — always pull the CURRENT command from
+  `/nuget` (or the matching language route), never reuse an old GUID.
+
+## Token discipline — keep build/runtime logs OUT of context [VERIFIED gg v1.3.0]
+Hosting a graft produces a LOT of noisy output. Only the **result/errors** should reach context, never
+the whole machinery. The language rules reference this section.
+1. **Fetch `gg.deb` quietly in EVERY Dockerfile.** The `.deb` is ~107 MB; a plain `wget` emits thousands
+   of progress lines that flood `docker build`. Always use **`wget -q`** (or **`curl -sS`**).
+2. **Wait for readiness via the route, not logs.** Right before ready, `gg` prints install commands for
+   ALL ecosystems (~40 noise lines). Do NOT read full `docker logs`; instead **poll the language route
+   on the MAPPED port until 200** — both the readiness check AND the exact one-line install command:
+   `curl -sS --max-time 5 http://localhost:<mappedPort>/nuget` (or `/npm`, `/pypi`, `/libraries`, …).
+   Readiness sentinel: `Graft Vision is available on http://localhost:<port>`. If you must read logs,
+   filter to it: `docker logs <name> | grep "Graft Vision is available"` — never echo the whole log.
+   **Port caveat:** gg v1.3.0 serves Vision on the **SAME port as WS**; the "settings" line may say
+   `Vision: port 81`, but the live routes are on the **mapped WS port** — use that for `/nuget` etc.
+3. **After install, read only what you use.** The export list (`index.d.ts` / equivalent) **plus the one
+   service/DTO file you actually use** is enough — get the rest from the UGM. Do NOT read the entire
+   `node_modules/<graft>` or all `.d.ts` files.
+4. **Minimize tool logs for long commands** (`docker build`, `dotnet build/restore`, `npm install`):
+   redirect to a file and read only the **tail (~30 lines) / errors**; use quiet modes (`dotnet build
+   -v q`, `npm install --no-fund --no-audit`); don't echo the full `docker build` transcript.
 
 ## ⛔ HARD RULE — NEVER create a throwaway "probe"/"test" project (wastes tokens + iterations)
 Do **NOT** spin up a separate scratch/helper/probe `.csproj`, package, or mini-app to "learn the

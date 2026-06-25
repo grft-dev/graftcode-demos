@@ -39,8 +39,10 @@ file is written — never start REST-first and apologize/redo later.
   arrays/iterators/streams or any tech-specific collection — use a plain array of a DTO/simple type.
 - **Custom exceptions stay off the public surface.** The gateway turns them into a plain exception on
   the caller, but the message propagates — write clear messages.
-- **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory),
-  ports 80 (WS) + 81 (Vision). Use `--projectKey` for stable IDs.
+- **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory).
+  WS/service calls on port 80; on gg v1.3.0 Vision's live HTTP routes are served on the **same (WS)
+  port** — read actual ports from `gg` logs, don't assume 81. Use `--projectKey` for stable IDs. See
+  **Token discipline** below for fetching `gg.deb` quietly and waiting on the readiness route, not logs.
 - **Gateway/Vision output is the source of truth.** Never guess registry URLs, GUIDs, package names,
   imports, or config field names — copy them from `gg` logs / Graftcode Vision. On the consumer set
   `GraftConfig.host` (`.Host` on .NET).
@@ -60,14 +62,36 @@ routes — fetch them directly:
 These routes (and `gg` logs) are the ONLY allowed source for registry URL/GUID, package name, method
 signatures and DTO field names — keep the existing "never guess" rule, but treat `/libraries` + the
 language route as the authoritative way to satisfy it.
-### Reading UGM JSON quickly
-- `STATIC_METHOD` payload = [name, return TYPE_USAGE, _, PARAMETERS_ARRAY].
-- `INSTANCE_FIELD` payload = [name, TYPE_USAGE, SETTER, GETTER].
-- `TYPE_USAGE_PRIMITIVE` payload = [_, namespace, typeName, typeCode, assembly, version];
-  observed typeCode map: 1=String, 2=Int32, 7=Int64, 8=Double, 0=complex/custom type.
-- `TYPE_USAGE_ARRAY` = plain `T[]`.
-- The GUID rotates on every gateway restart (no `--projectKey`), so always pull the CURRENT command
-  from `/nuget` (or the matching language route) rather than reusing an old GUID.
+### Reading UGM JSON quickly — DON'T paste the whole blob
+`/libraries` is large JSON (tens of KB). **Never read/echo the whole blob.** Save it and `grep` only
+names/signatures (`curl -sS .../libraries -o ugm.json` then grep `STATIC_METHOD`/`INSTANCE_FIELD`/
+`TYPE_USAGE_*`). That's enough for the contract. Field meanings:
+- `STATIC_METHOD` = [name, return TYPE_USAGE, _, PARAMETERS_ARRAY].
+- `INSTANCE_FIELD` = [name, TYPE_USAGE, SETTER, GETTER].
+- `TYPE_USAGE_PRIMITIVE` = [_, namespace, typeName, typeCode, …]; typeCode: 1=String, 2=Int32, 7=Int64,
+  8=Double, 0=complex/custom type. `TYPE_USAGE_ARRAY` = plain `T[]`.
+- The GUID rotates on every gateway restart (no `--projectKey`) — always pull the CURRENT command from
+  `/nuget` (or the matching language route), never reuse an old GUID.
+
+## Token discipline — keep build/runtime logs OUT of context [VERIFIED gg v1.3.0]
+Hosting a graft produces a LOT of noisy output. Only the **result/errors** should reach context, never
+the whole machinery. The language rules reference this section.
+1. **Fetch `gg.deb` quietly in EVERY Dockerfile.** The `.deb` is ~107 MB; a plain `wget` emits thousands
+   of progress lines that flood `docker build`. Always use **`wget -q`** (or **`curl -sS`**).
+2. **Wait for readiness via the route, not logs.** Right before ready, `gg` prints install commands for
+   ALL ecosystems (~40 noise lines). Do NOT read full `docker logs`; instead **poll the language route
+   on the MAPPED port until 200** — both the readiness check AND the exact one-line install command:
+   `curl -sS --max-time 5 http://localhost:<mappedPort>/nuget` (or `/npm`, `/pypi`, `/libraries`, …).
+   Readiness sentinel: `Graft Vision is available on http://localhost:<port>`. If you must read logs,
+   filter to it: `docker logs <name> | grep "Graft Vision is available"` — never echo the whole log.
+   **Port caveat:** gg v1.3.0 serves Vision on the **SAME port as WS**; the "settings" line may say
+   `Vision: port 81`, but the live routes are on the **mapped WS port** — use that for `/nuget` etc.
+3. **After install, read only what you use.** The export list (`index.d.ts` / equivalent) **plus the one
+   service/DTO file you actually use** is enough — get the rest from the UGM. Do NOT read the entire
+   `node_modules/<graft>` or all `.d.ts` files.
+4. **Minimize tool logs for long commands** (`docker build`, `dotnet build/restore`, `npm install`):
+   redirect to a file and read only the **tail (~30 lines) / errors**; use quiet modes (`dotnet build
+   -v q`, `npm install --no-fund --no-audit`); don't echo the full `docker build` transcript.
 
 ## ⛔ HARD RULE — NEVER create a throwaway "probe"/"test" project (wastes tokens + iterations)
 Do **NOT** spin up a separate scratch/helper/probe `.csproj`, package, or mini-app to "learn the
@@ -214,24 +238,27 @@ and needlessly leaks into the public surface.
 1. Design contract (**`static`** sync methods + primitive/string DTOs; instance only if truly stateful).
 2. `dotnet new classlib -n WeatherService`
 3. Add `Dockerfile` (below) + `.dockerignore` (`bin/`, `obj/`).
-4. `dotnet build <Project>.csproj` (catch compile errors).
-5. `docker build -t myservice:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name myservice myservice:test`
+4. `dotnet build <Project>.csproj -v q` (catch compile errors; quiet so only errors reach context).
+5. `docker build -t myservice:test . > build.log 2>&1` (read only the tail/errors, not the transcript),
+   then `docker run -d -p 80:80 -p 81:81 --name myservice myservice:test`
    - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`
      on gg v1.2.x. **gg v1.3.0 serves WS + Vision on the SAME port** — read the actual ports from the
      `gg` logs instead of hardcoding 81.
-6. `docker logs <name>` → confirm `Type enabled: <Namespace>.<Class>` + `Uploading UGM successful`,
-   and copy the install command (with current GUID).
+6. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — that's both the
+   readiness check and the exact install command (current GUID):
+   `curl -sS --max-time 5 http://localhost:80/nuget`. If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference)
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /usr/app
 COPY . /usr/app/
-RUN dotnet build
-RUN dotnet publish -c Release -o /usr/app/
+RUN dotnet build -v q
+RUN dotnet publish -c Release -o /usr/app/ -v q
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -271,6 +298,10 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 ### Consuming a published graft — practical notes [VERIFIED this run]
 - Get the install command from Vision `/nuget` (live GUID), add the `https://grft.dev/<GUID>__free`
   feed to THAT project's `NuGet.config` (keep `nuget.org` too), and add the PackageReference.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it to a file and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After
+  install, **don't read every package file** — the reference DLL's public types you actually use are
+  enough; get the rest from the UGM. Run `dotnet add`/`restore` quietly and read only errors.
 - The graft package ships a real reference DLL at `lib/netX/<pkg>.dll` and depends on
   `Hypertube.Netcore.Sdk` (which carries the runtime `Binaries.zip`). There is NO source / no Roslyn
   source-generator, so there are no `.cs`/`.d.ts` files to read for .NET — use Vision `/libraries`
@@ -385,6 +416,9 @@ graft packages resolve from grft.dev and everything else from nuget.org:
   clean Docker build with `NU1301`).
 - Don't hardcode the DTO's namespace (use `var`) or assume PascalCase fields (producer names, often
   snake_case, win). Don't hardcode Vision on port 81 (v1.3.0 shares the WS port).
+- Don't flood context: fetch `gg.deb` with `wget -q`, poll `/nuget` instead of reading full `docker
+  logs`, don't paste the whole `/libraries` UGM, and redirect long build/restore output to a file
+  (read only the tail/errors). See **Token discipline** in the router.
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
 
@@ -501,8 +535,12 @@ in env config (never hardcode).
    **prefer `static` methods / exported functions** (stateless facade); instance only if truly stateful.
 2. Keep inputs/outputs simple; no framework-specific public types.
 3. Build/transpile TS; ensure `package.json` `main`/`exports` points to the correct entry.
-4. Run Graftcode Gateway per the JS docs; open Graftcode Vision; verify discovered methods.
-5. Copy the generated install command from Vision / `gg` output; consume from the target app.
+4. Run Graftcode Gateway per the JS docs. If you host it in Docker, fetch `gg.deb` quietly
+   (`wget -q` / `curl -sS`) — the ~107 MB progress bar is pure token noise.
+5. Don't read full `docker logs`/`gg` output to get the command: poll the route until 200 —
+   `curl -sS --max-time 5 http://localhost:<mappedPort>/npm` is both the readiness check and the exact
+   install command. (gg v1.3.0 serves Vision routes on the **same port as WS** — use the mapped WS
+   port. See **Token discipline** in the router.) Then consume from the target app.
 
 ## Consumer workflow (call a Graft)
 1. Open the relevant Gateway/Vision output; copy the generated **npm install** command; install it.
@@ -526,10 +564,20 @@ console.log(await EnergyPriceCalculator.getPrice());
 
 ### Installing grafts from npm (each on its own GUID registry) [VERIFIED gotcha]
 - Each graft is a **separate package in the `@graft` scope on its OWN GUID registry**. Install **each one
-  separately** with **its own `--registry`** (copy the exact command from the `gg` logs):
-  `npm install --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
+  separately** with **its own `--registry`** (copy the exact command from the `gg` logs); add quiet flags
+  so install machinery doesn't flood context:
+  `npm install --no-fund --no-audit --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
 - Afterwards do **NOT** run a plain `npm install` that would resolve `@graft` from npmjs (→ 404). The
   **lockfile keeps the resolved `grft.dev` URLs**, so a reinstall **from the lockfile** is fine.
+- Get the install command itself from the route, not the full logs:
+  `curl -sS --max-time 5 http://localhost:<mappedPort>/npm` (also the readiness check). See **Token
+  discipline** in the router.
+
+### After install, read only what you use (token discipline)
+Don't read every file in the installed package. The export list (`index.d.ts`) **plus the specific
+service/DTO `.d.ts` you actually use** is enough — get everything else from the UGM (`/libraries`,
+grep'd, not pasted whole). **Do NOT read the entire `node_modules/<graft>` or all `.d.ts` files** —
+target the exports and the type you use.
 
 ## ⛔ HARD RULE / anti-pattern — bind the generated DTO directly (no proxy, no `await` on accessors)
 This is the #1 TS time-sink. The Graft generator emits DTOs whose field accessors (`get_X()` /
@@ -780,21 +828,25 @@ discovered as a type and needlessly leaks into the public surface.
    stateful).
 2. Create a Maven project (`pom.xml`, `src/main/java/...`) with intentional public methods.
 3. Add a `Dockerfile` (below); `mvn package` runs inside it.
-4. `mvn package` locally to catch compile errors first.
-5. `docker build --no-cache --pull -t myservice-java:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_java myservice-java:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-6. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `mvn package -q` locally to catch compile errors first (quiet so only errors reach context).
+5. `docker build --no-cache --pull -t myservice-java:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_java myservice-java:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+6. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID):
+   `curl -sS --max-time 5 http://localhost:80/maven`. If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference)
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM maven:3.9-eclipse-temurin-21
 WORKDIR /usr/app
 COPY . /usr/app/
 RUN mvn package -q
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -851,6 +903,9 @@ public class Main {
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM.
 
 ## Resilience for remote methods
 - Single `static HttpClient` with a sane timeout; **retry with backoff** on timeouts/5xx; consider a
@@ -1008,21 +1063,25 @@ discovered as a type and needlessly leaks into the public surface.
 2. Create a Maven project with the Kotlin plugin, `src/main/kotlin/...`, with intentional public
    methods.
 3. Add a `Dockerfile` (below); `mvn package` runs inside it.
-4. `mvn package` locally to catch compile errors first.
-5. `docker build --no-cache --pull -t myservice-kotlin:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_kotlin myservice-kotlin:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-6. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `mvn package -q` locally to catch compile errors first (quiet so only errors reach context).
+5. `docker build --no-cache --pull -t myservice-kotlin:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_kotlin myservice-kotlin:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+6. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID):
+   `curl -sS --max-time 5 http://localhost:80/maven`. If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference)
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM maven:3.9-eclipse-temurin-21
 WORKDIR /usr/app
 COPY . /usr/app/
 RUN mvn package -q
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -1058,6 +1117,9 @@ println(price)
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM.
 
 ## Resilience for remote methods
 - Single shared HTTP client with a sane timeout; **retry with backoff** on timeouts/5xx; consider a
@@ -1214,20 +1276,24 @@ class needlessly leaks into the public surface.
    if truly stateful).
 2. Create the module file(s) + `pyproject.toml` with an intentional public surface.
 3. Add a `Dockerfile` (below).
-4. `docker build --no-cache --pull -t myservice-py:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_py myservice-py:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-5. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `docker build --no-cache --pull -t myservice-py:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_py myservice-py:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+5. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID):
+   `curl -sS --max-time 5 http://localhost:80/pypi`. If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference)
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM python:3.13-bookworm
 WORKDIR /usr/app
 COPY ./energy_price_calculator.py /usr/app/energy-service/
 COPY ./pyproject.toml /usr/app/energy-service/
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -1273,6 +1339,10 @@ os._exit(0)
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM. Run `pip install`
+  quietly (`-q`) and read only errors.
 
 ## Resilience for remote methods
 - Single shared HTTP client (e.g. a module-level `requests.Session`/`httpx.Client`) with a sane
@@ -1439,19 +1509,24 @@ there is no published PHP Quick Start, **verify the image, module path, and `CMD
 2. Create the PHP class file(s) with an intentional public surface (and `composer.json` if you use
    dependencies; `composer install` so vendor code is available at host time).
 3. Add a `Dockerfile` (reference below) — adjust to match Vision output.
-4. `docker build --no-cache --pull -t myservice-php:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_php myservice-php:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-5. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `docker build --no-cache --pull -t myservice-php:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_php myservice-php:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+5. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID), e.g.
+   `curl -sS --max-time 5 http://localhost:80/composer` (use the route Vision offers for your consumer).
+   If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference — adjust to Vision output) [INFERRED]
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM php:8.3-cli
 WORKDIR /usr/app
 COPY . /usr/app/energy-service/
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -1489,6 +1564,9 @@ echo $price;
 - Without the host set, the client runs in monolith/in-memory mode — set `host` to flip into
   microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM.
 
 ## Resilience for remote methods
 - Single shared HTTP client (e.g. Guzzle) with a sane timeout; **retry with backoff** on timeouts/5xx;
@@ -1655,19 +1733,24 @@ output**.
 2. Create the Ruby class file(s) with an intentional public surface (and a `Gemfile` if you use gems;
    `bundle install` so dependencies are available at host time).
 3. Add a `Dockerfile` (reference below) — adjust to match Vision output.
-4. `docker build --no-cache --pull -t myservice-ruby:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_ruby myservice-ruby:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-5. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `docker build --no-cache --pull -t myservice-ruby:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_ruby myservice-ruby:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+5. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID), e.g.
+   `curl -sS --max-time 5 http://localhost:80/gem` (use the route Vision offers for your consumer).
+   If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference — adjust to Vision output) [INFERRED]
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM ruby:3.3
 WORKDIR /usr/app
 COPY . /usr/app/energy-service/
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -1704,6 +1787,9 @@ puts price
 - Without the host set, the client runs in monolith/in-memory mode — set `host` to flip into
   microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM.
 
 ## Resilience for remote methods
 - Single shared HTTP client (e.g. `Net::HTTP`/Faraday) with a sane timeout; **retry with backoff** on

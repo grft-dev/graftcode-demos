@@ -128,19 +128,24 @@ output**.
 2. Create the Ruby class file(s) with an intentional public surface (and a `Gemfile` if you use gems;
    `bundle install` so dependencies are available at host time).
 3. Add a `Dockerfile` (reference below) — adjust to match Vision output.
-4. `docker build --no-cache --pull -t myservice-ruby:test .` then
-   `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_ruby myservice-ruby:test`
-   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI `http://localhost:81/GV`.
-5. `docker logs <name>` → confirm methods are enabled + upload succeeded, and copy the install command
-   (with current GUID) from Vision.
+4. `docker build --no-cache --pull -t myservice-ruby:test . > build.log 2>&1` (read only the tail/errors),
+   then `docker run -d -p 80:80 -p 81:81 --name graftcode_demo_ruby myservice-ruby:test`
+   - Port **80** = WS/service calls (`ws://host:80/ws`); Port **81** = Vision UI on gg v1.2.x.
+     **gg v1.3.0 serves Vision routes on the SAME port as WS** — read actual ports from `gg` logs.
+5. **Don't read full `docker logs`.** Poll the route on the mapped port until 200 — both the readiness
+   check and the exact install command (current GUID), e.g.
+   `curl -sS --max-time 5 http://localhost:80/gem` (use the route Vision offers for your consumer).
+   If you must read logs, filter to the sentinel:
+   `docker logs <name> | grep "Graft Vision is available"`. (See **Token discipline** in the router.)
 
 ### Dockerfile (reference — adjust to Vision output) [INFERRED]
+Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
 ```dockerfile
 FROM ruby:3.3
 WORKDIR /usr/app
 COPY . /usr/app/energy-service/
 RUN apt-get update && apt-get install -y wget \
- && wget -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -177,6 +182,9 @@ puts price
 - Without the host set, the client runs in monolith/in-memory mode — set `host` to flip into
   microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
+- **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
+  UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
+  read every generated file — only the type you use; get the rest from the UGM.
 
 ## Resilience for remote methods
 - Single shared HTTP client (e.g. `Net::HTTP`/Faraday) with a sane timeout; **retry with backoff** on

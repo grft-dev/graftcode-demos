@@ -120,8 +120,12 @@ in env config (never hardcode).
    **prefer `static` methods / exported functions** (stateless facade); instance only if truly stateful.
 2. Keep inputs/outputs simple; no framework-specific public types.
 3. Build/transpile TS; ensure `package.json` `main`/`exports` points to the correct entry.
-4. Run Graftcode Gateway per the JS docs; open Graftcode Vision; verify discovered methods.
-5. Copy the generated install command from Vision / `gg` output; consume from the target app.
+4. Run Graftcode Gateway per the JS docs. If you host it in Docker, fetch `gg.deb` quietly
+   (`wget -q` / `curl -sS`) — the ~107 MB progress bar is pure token noise.
+5. Don't read full `docker logs`/`gg` output to get the command: poll the route until 200 —
+   `curl -sS --max-time 5 http://localhost:<mappedPort>/npm` is both the readiness check and the exact
+   install command. (gg v1.3.0 serves Vision routes on the **same port as WS** — use the mapped WS
+   port. See **Token discipline** in the router.) Then consume from the target app.
 
 ## Consumer workflow (call a Graft)
 1. Open the relevant Gateway/Vision output; copy the generated **npm install** command; install it.
@@ -145,10 +149,20 @@ console.log(await EnergyPriceCalculator.getPrice());
 
 ### Installing grafts from npm (each on its own GUID registry) [VERIFIED gotcha]
 - Each graft is a **separate package in the `@graft` scope on its OWN GUID registry**. Install **each one
-  separately** with **its own `--registry`** (copy the exact command from the `gg` logs):
-  `npm install --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
+  separately** with **its own `--registry`** (copy the exact command from the `gg` logs); add quiet flags
+  so install machinery doesn't flood context:
+  `npm install --no-fund --no-audit --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
 - Afterwards do **NOT** run a plain `npm install` that would resolve `@graft` from npmjs (→ 404). The
   **lockfile keeps the resolved `grft.dev` URLs**, so a reinstall **from the lockfile** is fine.
+- Get the install command itself from the route, not the full logs:
+  `curl -sS --max-time 5 http://localhost:<mappedPort>/npm` (also the readiness check). See **Token
+  discipline** in the router.
+
+### After install, read only what you use (token discipline)
+Don't read every file in the installed package. The export list (`index.d.ts`) **plus the specific
+service/DTO `.d.ts` you actually use** is enough — get everything else from the UGM (`/libraries`,
+grep'd, not pasted whole). **Do NOT read the entire `node_modules/<graft>` or all `.d.ts` files** —
+target the exports and the type you use.
 
 ## ⛔ HARD RULE / anti-pattern — bind the generated DTO directly (no proxy, no `await` on accessors)
 This is the #1 TS time-sink. The Graft generator emits DTOs whose field accessors (`get_X()` /
