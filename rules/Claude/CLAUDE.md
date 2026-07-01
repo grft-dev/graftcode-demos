@@ -68,6 +68,32 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
     subsequent graft calls.
   - `GraftConfig.invokeWithHeaders(() => Service.method(...), {...})` — scope headers to a **single**
     invocation (per-request tokens, temporarily overriding globals).
+- **Transport matters from the browser (JS): WebSocket can't set headers.** A browser cannot attach
+  custom headers (`Authorization`, JWT, `X-Api-Key`, custom headers) to a **WebSocket** handshake, so
+  `GraftConfig.setHeaders(...)` **won't reach the server over `ws://`/`wss://` from the browser**.
+  Therefore:
+  - **Browser + STATELESS + you need to send tokens/headers → use the HTTP/2 channel, NOT WebSocket.**
+    Over HTTP/2 the client CAN set the headers, and `RequestContext` on the server reads them normally.
+  - **Browser + STATEFUL + you need to send tokens → headers won't work; pass the tokens as method
+    arguments instead** (this is the one sanctioned exception to "never a parameter", because a
+    stateful browser connection uses WebSocket, which can't carry the headers).
+  - **DEFAULT:** if the user asks to use a JWT / auth header from the browser and does **NOT** explicitly
+    ask for WebSocket, **default to HTTP/2 + stateless + headers** (keep tokens out of the signature).
+    Only fall back to passing tokens as arguments when the user explicitly wants a **stateful** (WebSocket)
+    connection. This browser transport caveat does not apply to server-to-server calls.
+- **How to actually enable HTTP/2 (from the docs / gateway README):**
+  - **Host side:** the gateway hosts an optional HTTP/2 server — start `gg` with **`--http2Server`** and
+    (optionally) **`--http2Port <port>`** (default **83**), and `EXPOSE`/publish that port. Example:
+    `gg --modules <module> --http2Server --http2Port 8989` (WS `--port` 80, Vision `--httpPort` 81,
+    TCP `--tcpServer`/`--tcpPort`, HTTP/2 `--http2Server`/`--http2Port` are independent servers).
+  - **Consumer side:** point `GraftConfig.host` at the **HTTP/2 endpoint using the `https://` scheme**
+    (not `ws://`/`wss://`). The Graftcode HTTP/2 endpoint **always ends with the `/h2` path**, e.g.
+    `GraftConfig.host = "https://<host>:<port>/h2"`. Keep the stateless flag on, then set headers with
+    `setHeaders`/`invokeWithHeaders`.
+  - **Copy the exact HTTP/2 host/port from Vision / `gg` logs — never guess.** Full connection-string
+    config (`GraftConfig.setConfig(...)`) is **not supported yet**, so use the `host` field.
+  - Docs: transport security https://docs.graftcode.com/security-and-trust/transport-security-tls-wss ;
+    gateway flags https://github.com/grft-dev/graftcode-gateway .
 - **Package per language:** Node.js `graftcode-context`, .NET `Graftcode.Context`, Java/Kotlin
   `com.graftcode:graftcode-context`, Python `graftcode-context`, PHP `graftcode/graftcode-context`,
   Ruby `graftcode-context`. The matching language rule has the exact import + snippet.

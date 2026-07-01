@@ -119,6 +119,42 @@ const one = GraftConfig.invokeWithHeaders(
   { "Authorization": "Bearer other" });
 ```
 
+#### Browser transport: HTTP/2 for headers (stateless) vs WebSocket (stateful)
+A **browser cannot set custom headers on a WebSocket handshake**, so `GraftConfig.setHeaders(...)` /
+`invokeWithHeaders(...)` **do NOT reach the server over `ws://`/`wss://` from the browser**. Pick the
+transport by what the frontend needs:
+- **Stateless + you need to send a JWT / auth header / custom headers → use the HTTP/2 channel, NOT
+  WebSocket.** Configure `GraftConfig` with the **HTTP/2 host** that gg/Vision exposes (an `https://`
+  endpoint that **always ends with `/h2`**) instead of the `wss://.../ws` one, keep
+  `GraftConfig.stateless = true`, and set headers via
+  `setHeaders`/`invokeWithHeaders`. Over HTTP/2 the browser can send the headers and server-side
+  `RequestContext` reads them. **Copy the exact HTTP/2 host/scheme from Vision — don't guess it.**
+
+  Enable and use HTTP/2 (per the gateway README + docs):
+```bash
+# Host: start the gateway with the HTTP/2 server on (default --http2Port is 83)
+gg --modules <module> --http2Server --http2Port 8989
+```
+```ts
+// Consumer (browser): use the https:// HTTP/2 endpoint, NOT ws://; keep it stateless.
+import { GraftConfig, InvoiceService } from "<generated-graft-package>";
+
+GraftConfig.host = "https://<host>:8989/h2";  // HTTP/2 endpoint always ends with /h2 (copy host/port from Vision)
+GraftConfig.stateless = true;
+GraftConfig.setHeaders({ "Authorization": "Bearer token123" });  // now reaches the server over HTTP/2
+const invoice = InvoiceService.getInvoice("INV-1");
+```
+  > Full connection-string config (`GraftConfig.setConfig(...)`) is **not supported yet** — use the
+  > `host` field. Docs: https://docs.graftcode.com/security-and-trust/transport-security-tls-wss
+- **Stateful (WebSocket) + you need to send tokens → headers are impossible over the browser WS, so pass
+  the tokens as method arguments** (the one sanctioned exception to "never a parameter"). Warn about the
+  usual stateful caveats (single-instance pinning / session stickiness, remote object may no longer
+  exist).
+- **DEFAULT:** if the user asks to use a JWT / auth header from the browser and does **NOT** explicitly
+  ask for WebSocket, **default to HTTP/2 + `stateless = true` + headers** (tokens stay out of the
+  signature). Only pass tokens as arguments when they explicitly want a **stateful** WebSocket
+  connection. (Server-to-server Node calls aren't affected — `wss://` + headers work there.)
+
 ### Type guidance for public signatures
 - Preferred: `string`, `number`, `boolean`, **plain arrays `T[]`** of supported values, plain objects of
   supported values, `Promise<T>` for async results.
