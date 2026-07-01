@@ -104,6 +104,14 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
     `setHeaders`/`invokeWithHeaders`.
   - **Copy the exact HTTP/2 host/port from Vision / `gg` logs — never guess.** Full connection-string
     config (`GraftConfig.setConfig(...)`) is **not supported yet**, so use the `host` field.
+  - **Local dev caveat:** browsers require **HTTP/2 over TLS (h2)** and won't do cleartext HTTP/2
+    (**h2c**). Note gg's endpoint is named **`/h2` but is actually `h2c`** (no TLS on the container).
+    Since the `gg` containers expose **h2c**, on `localhost` run a **local HTTPS reverse proxy** (e.g.
+    the Vite dev server with a local cert) that terminates TLS and forwards `/h2` to the container's h2c
+    endpoint — point `GraftConfig.host` at the proxy. **With more than one backend, add one proxy alias
+    per service** (e.g. `/invoices/h2`, `/pricing/h2`) each forwarding to its own container's h2c port,
+    and set each graft's `host` to the matching alias. See the TypeScript rule for the Vite config. In
+    prod, TLS is terminated by your real ingress/load balancer.
   - Docs: transport security https://docs.graftcode.com/security-and-trust/transport-security-tls-wss ;
     gateway flags https://github.com/grft-dev/graftcode-gateway .
 - **Package per language:** Node.js `graftcode-context`, .NET `Graftcode.Context`, Java/Kotlin
