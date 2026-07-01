@@ -62,6 +62,8 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
   `RequestContext.current` (or `.Current` / `.current()`) exposes `Authorization`, `X-Api-Key`,
   `X-Correlation-Id`, `X-Tenant-Id`, etc. Validate/authorize there; the public signature stays purely
   business (e.g. `getInvoice(invoiceId)`, not `getInvoice(invoiceId, jwt)`).
+  **Requires the gateway to run with `--useContext=1`** — without that flag `RequestContext.Current` is
+  `null` and no headers are readable (see the HTTP/2 host flags below).
 - **Consumer (client / graft side).** Do NOT pass the token positionally. Set it as a header on the
   generated **`GraftConfig`**:
   - `GraftConfig.setHeaders({...})` — set once (e.g. at startup or right after login) for **all**
@@ -82,10 +84,15 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
     Only fall back to passing tokens as arguments when the user explicitly wants a **stateful** (WebSocket)
     connection. This browser transport caveat does not apply to server-to-server calls.
 - **How to actually enable HTTP/2 (from the docs / gateway README):**
-  - **Host side:** the gateway hosts an optional HTTP/2 server — start `gg` with **`--http2Server`** and
-    (optionally) **`--http2Port <port>`** (default **83**), and `EXPOSE`/publish that port. Example:
-    `gg --modules <module> --http2Server --http2Port 8989` (WS `--port` 80, Vision `--httpPort` 81,
-    TCP `--tcpServer`/`--tcpPort`, HTTP/2 `--http2Server`/`--http2Port` are independent servers).
+  - **Host side — for HTTP/2 + headers you MUST start `gg` with all three flags:**
+    - **`--useContext=1`** — the easy-to-miss one: it populates **`RequestContext.Current`** on the
+      server. **Without it `RequestContext.Current` is `null`** and your headers/JWT are never readable.
+    - **`--http2Server=1`** — enable the HTTP/2 server (optionally **`--http2Port <port>`**, default
+      **83**); `EXPOSE`/publish that port.
+    - **`--corsAllowedOrigins=*`** — allow the browser's cross-origin HTTP/2 calls (tighten to your real
+      origins in production).
+    - Example: `gg --modules <module> --useContext=1 --http2Server=1 --http2Port 8989 --corsAllowedOrigins=*`
+      (WS `--port` 80, Vision `--httpPort` 81, TCP `--tcpServer`/`--tcpPort` are independent servers).
   - **Consumer side:** point `GraftConfig.host` at the **HTTP/2 endpoint using the `https://` scheme**
     (not `ws://`/`wss://`). The Graftcode HTTP/2 endpoint **always ends with the `/h2` path**, e.g.
     `GraftConfig.host = "https://<host>:<port>/h2"`. Keep the stateless flag on, then set headers with

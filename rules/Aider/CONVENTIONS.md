@@ -62,6 +62,8 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
   `RequestContext.current` (or `.Current` / `.current()`) exposes `Authorization`, `X-Api-Key`,
   `X-Correlation-Id`, `X-Tenant-Id`, etc. Validate/authorize there; the public signature stays purely
   business (e.g. `getInvoice(invoiceId)`, not `getInvoice(invoiceId, jwt)`).
+  **Requires the gateway to run with `--useContext=1`** — without that flag `RequestContext.Current` is
+  `null` and no headers are readable (see the HTTP/2 host flags below).
 - **Consumer (client / graft side).** Do NOT pass the token positionally. Set it as a header on the
   generated **`GraftConfig`**:
   - `GraftConfig.setHeaders({...})` — set once (e.g. at startup or right after login) for **all**
@@ -82,10 +84,15 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
     Only fall back to passing tokens as arguments when the user explicitly wants a **stateful** (WebSocket)
     connection. This browser transport caveat does not apply to server-to-server calls.
 - **How to actually enable HTTP/2 (from the docs / gateway README):**
-  - **Host side:** the gateway hosts an optional HTTP/2 server — start `gg` with **`--http2Server`** and
-    (optionally) **`--http2Port <port>`** (default **83**), and `EXPOSE`/publish that port. Example:
-    `gg --modules <module> --http2Server --http2Port 8989` (WS `--port` 80, Vision `--httpPort` 81,
-    TCP `--tcpServer`/`--tcpPort`, HTTP/2 `--http2Server`/`--http2Port` are independent servers).
+  - **Host side — for HTTP/2 + headers you MUST start `gg` with all three flags:**
+    - **`--useContext=1`** — the easy-to-miss one: it populates **`RequestContext.Current`** on the
+      server. **Without it `RequestContext.Current` is `null`** and your headers/JWT are never readable.
+    - **`--http2Server=1`** — enable the HTTP/2 server (optionally **`--http2Port <port>`**, default
+      **83**); `EXPOSE`/publish that port.
+    - **`--corsAllowedOrigins=*`** — allow the browser's cross-origin HTTP/2 calls (tighten to your real
+      origins in production).
+    - Example: `gg --modules <module> --useContext=1 --http2Server=1 --http2Port 8989 --corsAllowedOrigins=*`
+      (WS `--port` 80, Vision `--httpPort` 81, TCP `--tcpServer`/`--tcpPort` are independent servers).
   - **Consumer side:** point `GraftConfig.host` at the **HTTP/2 endpoint using the `https://` scheme**
     (not `ws://`/`wss://`). The Graftcode HTTP/2 endpoint **always ends with the `/h2` path**, e.g.
     `GraftConfig.host = "https://<host>:<port>/h2"`. Keep the stateless flag on, then set headers with
@@ -248,10 +255,16 @@ The registry validates the public surface and rejects the package on framework c
 `400 (Package not supported - Using complex types from framework in public interfaces is not supported yet)`.
 
 Use ONLY on public signatures & public DTO properties:
-- `string`, `int`, `long`, `double`, `decimal`, `bool`
+- `string`, `int`, `double`, `decimal`, `bool`
 - Plain DTOs composed only of the above (nested DTOs ok)
 - For any collection: **plain arrays only** — `T[]` (e.g. `string[]`, `int[]`, `SearchLocation[]`,
   nested `Day[]`).
+
+> ⚠️ **TEMPORARY — avoid `long` (`Int64`) on public APIs meant to be consumed by a JS/TS graft; use
+> `int` instead.** Graftcode currently has a bug where `long` maps to JS **`bigint`**, which **breaks in
+> stateless mode**. Until it's fixed: model 64-bit values as `int` where the range allows, or as a
+> `string` if you truly need the full 64-bit range. This applies to method parameters, return types, and
+> DTO fields. (Pure .NET↔.NET/JVM consumers aren't affected, but default to `int` for cross-tech safety.)
 
 Never on the public surface (each breaks publish or leaks tech specifics):
 - ❌ `Task`/`Task<T>`/`async` → public methods MUST be **synchronous** (use `.GetAwaiter().GetResult()` internally)
@@ -301,7 +314,10 @@ public static class InvoiceService {
     }
 }
 ```
-  `RequestContext.Current` uses `[ThreadStatic]` for thread safety.
+  `RequestContext.Current` uses `[ThreadStatic]` for thread safety. **The gateway must run with
+  `--useContext=1`** — without that flag `RequestContext.Current` is `null` and no headers are readable.
+  For browser HTTP/2 + headers also pass `--http2Server=1` (and `--corsAllowedOrigins=*`), e.g.
+  `gg --modules <Assembly>.dll --useContext=1 --http2Server=1 --http2Port 8989 --corsAllowedOrigins=*`.
 - **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
   positionally:
 ```csharp
@@ -319,6 +335,34 @@ var one = GraftConfig.InvokeWithHeaders(
     new Dictionary<string, string> { { "Authorization", "Bearer other" } });
 // var oneAsync = await GraftConfig.InvokeWithHeadersAsync(async () => ..., headers);
 ```
+
+### JWT `sub` claim — validation remapping trap — [VERIFIED]
+`System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler` has **inbound claim mapping enabled by
+default** (`MapInboundClaims = true`). During `ValidateToken(...)` the short claim name `"sub"` is
+remapped to `ClaimTypes.NameIdentifier`
+(`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier`). So a token issued with
+`new Claim(JwtRegisteredClaimNames.Sub, username)` **no longer has a `"sub"` claim after validation**.
+
+- ❌ Don't read the user via `principal.FindFirst(JwtRegisteredClaimNames.Sub)` after validation — it
+  returns `null`.
+- ❌ `principal.Identity?.Name` is also `null` (it maps to the `name`/`unique_name` claim, not `sub`).
+- ✅ **Default, robust read — check `NameIdentifier` with a `sub` fallback:**
+```csharp
+var username = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+```
+- ✅ Alternatively disable mapping so `sub` stays `sub`:
+```csharp
+var handler = new JwtSecurityTokenHandler();
+handler.MapInboundClaims = false;   // or JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+```
+- ✅ Or set it explicitly in `TokenValidationParameters`: `NameClaimType = JwtRegisteredClaimNames.Sub`
+  and then read `principal.Identity.Name`.
+
+**Rule for the agent:** when **issuing** a JWT use `JwtRegisteredClaimNames.Sub`, and when **reading**
+it after validation **ALWAYS assume the remapping** — use the `ClaimTypes.NameIdentifier ?? sub` pattern
+(option 1) as the default. The same applies to any service that only **validates** a token issued by
+another service (shared `SigningKey`, `Issuer`, `Audience`).
 
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision.
@@ -482,9 +526,13 @@ graft packages resolve from grft.dev and everything else from nuget.org:
 3. `Config source is not valid ...` / `JSON must contain 'configurations'` → set the `GraftConfig.Host` field, don't use `SetConfig`.
 4. `CS8805` / `MSB1011` → consumer code / extra project leaked into the lib folder.
 5. Remote call returns upstream error (e.g. `502`) → third-party API issue; your module did execute. Add retries/fallback.
+6. JS/TS consumer breaks on a 64-bit value in **stateless** mode (value comes through as `bigint`) →
+   a public `long` was used; **temporarily switch it to `int`** (or `string` for full 64-bit range).
 
 ## Anti-patterns
 - Don't default to REST. Don't expose framework types (incl. `Task<T>`, `DateTime`).
+- **TEMPORARY:** don't use `long` (`Int64`) on a public API consumed by a JS/TS graft — use `int` (or
+  `string` for the full 64-bit range). `long` currently maps to JS `bigint` and breaks in stateless mode.
 - Don't expose `List<T>`/`IEnumerable<T>`/`IList<T>`/`Dictionary<,>`/`HashSet<T>` or any tech-specific
   collection/interface on the public surface — use **plain arrays `T[]`** (cross-technology, one-shot in stateless).
 - Don't make custom exception types **public** — keep them `internal`/`private` (grafts aren't generated
@@ -638,8 +686,11 @@ transport by what the frontend needs:
 
   Enable and use HTTP/2 (per the gateway README + docs):
 ```bash
-# Host: start the gateway with the HTTP/2 server on (default --http2Port is 83)
-gg --modules <module> --http2Server --http2Port 8989
+# Host: HTTP/2 + headers needs ALL THREE flags (default --http2Port is 83):
+#   --useContext=1        -> populates RequestContext.Current (WITHOUT it, .Current is null!)
+#   --http2Server=1       -> enable the HTTP/2 server
+#   --corsAllowedOrigins=* -> allow the browser's cross-origin calls (tighten in prod)
+gg --modules <module> --useContext=1 --http2Server=1 --http2Port 8989 --corsAllowedOrigins=*
 ```
 ```ts
 // Consumer (browser): use the https:// HTTP/2 endpoint, NOT ws://; keep it stateless.

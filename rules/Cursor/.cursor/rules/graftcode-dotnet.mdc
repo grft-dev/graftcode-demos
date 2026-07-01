@@ -53,10 +53,16 @@ The registry validates the public surface and rejects the package on framework c
 `400 (Package not supported - Using complex types from framework in public interfaces is not supported yet)`.
 
 Use ONLY on public signatures & public DTO properties:
-- `string`, `int`, `long`, `double`, `decimal`, `bool`
+- `string`, `int`, `double`, `decimal`, `bool`
 - Plain DTOs composed only of the above (nested DTOs ok)
 - For any collection: **plain arrays only** — `T[]` (e.g. `string[]`, `int[]`, `SearchLocation[]`,
   nested `Day[]`).
+
+> ⚠️ **TEMPORARY — avoid `long` (`Int64`) on public APIs meant to be consumed by a JS/TS graft; use
+> `int` instead.** Graftcode currently has a bug where `long` maps to JS **`bigint`**, which **breaks in
+> stateless mode**. Until it's fixed: model 64-bit values as `int` where the range allows, or as a
+> `string` if you truly need the full 64-bit range. This applies to method parameters, return types, and
+> DTO fields. (Pure .NET↔.NET/JVM consumers aren't affected, but default to `int` for cross-tech safety.)
 
 Never on the public surface (each breaks publish or leaks tech specifics):
 - ❌ `Task`/`Task<T>`/`async` → public methods MUST be **synchronous** (use `.GetAwaiter().GetResult()` internally)
@@ -106,7 +112,10 @@ public static class InvoiceService {
     }
 }
 ```
-  `RequestContext.Current` uses `[ThreadStatic]` for thread safety.
+  `RequestContext.Current` uses `[ThreadStatic]` for thread safety. **The gateway must run with
+  `--useContext=1`** — without that flag `RequestContext.Current` is `null` and no headers are readable.
+  For browser HTTP/2 + headers also pass `--http2Server=1` (and `--corsAllowedOrigins=*`), e.g.
+  `gg --modules <Assembly>.dll --useContext=1 --http2Server=1 --http2Port 8989 --corsAllowedOrigins=*`.
 - **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
   positionally:
 ```csharp
@@ -124,6 +133,34 @@ var one = GraftConfig.InvokeWithHeaders(
     new Dictionary<string, string> { { "Authorization", "Bearer other" } });
 // var oneAsync = await GraftConfig.InvokeWithHeadersAsync(async () => ..., headers);
 ```
+
+### JWT `sub` claim — validation remapping trap — [VERIFIED]
+`System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler` has **inbound claim mapping enabled by
+default** (`MapInboundClaims = true`). During `ValidateToken(...)` the short claim name `"sub"` is
+remapped to `ClaimTypes.NameIdentifier`
+(`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier`). So a token issued with
+`new Claim(JwtRegisteredClaimNames.Sub, username)` **no longer has a `"sub"` claim after validation**.
+
+- ❌ Don't read the user via `principal.FindFirst(JwtRegisteredClaimNames.Sub)` after validation — it
+  returns `null`.
+- ❌ `principal.Identity?.Name` is also `null` (it maps to the `name`/`unique_name` claim, not `sub`).
+- ✅ **Default, robust read — check `NameIdentifier` with a `sub` fallback:**
+```csharp
+var username = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+```
+- ✅ Alternatively disable mapping so `sub` stays `sub`:
+```csharp
+var handler = new JwtSecurityTokenHandler();
+handler.MapInboundClaims = false;   // or JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
+```
+- ✅ Or set it explicitly in `TokenValidationParameters`: `NameClaimType = JwtRegisteredClaimNames.Sub`
+  and then read `principal.Identity.Name`.
+
+**Rule for the agent:** when **issuing** a JWT use `JwtRegisteredClaimNames.Sub`, and when **reading**
+it after validation **ALWAYS assume the remapping** — use the `ClaimTypes.NameIdentifier ?? sub` pattern
+(option 1) as the default. The same applies to any service that only **validates** a token issued by
+another service (shared `SigningKey`, `Issuer`, `Audience`).
 
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision.
@@ -287,9 +324,13 @@ graft packages resolve from grft.dev and everything else from nuget.org:
 3. `Config source is not valid ...` / `JSON must contain 'configurations'` → set the `GraftConfig.Host` field, don't use `SetConfig`.
 4. `CS8805` / `MSB1011` → consumer code / extra project leaked into the lib folder.
 5. Remote call returns upstream error (e.g. `502`) → third-party API issue; your module did execute. Add retries/fallback.
+6. JS/TS consumer breaks on a 64-bit value in **stateless** mode (value comes through as `bigint`) →
+   a public `long` was used; **temporarily switch it to `int`** (or `string` for full 64-bit range).
 
 ## Anti-patterns
 - Don't default to REST. Don't expose framework types (incl. `Task<T>`, `DateTime`).
+- **TEMPORARY:** don't use `long` (`Int64`) on a public API consumed by a JS/TS graft — use `int` (or
+  `string` for the full 64-bit range). `long` currently maps to JS `bigint` and breaks in stateless mode.
 - Don't expose `List<T>`/`IEnumerable<T>`/`IList<T>`/`Dictionary<,>`/`HashSet<T>` or any tech-specific
   collection/interface on the public surface — use **plain arrays `T[]`** (cross-technology, one-shot in stateless).
 - Don't make custom exception types **public** — keep them `internal`/`private` (grafts aren't generated
