@@ -139,75 +139,78 @@ const invoice = InvoiceService.getInvoice("INV-1");
   > Full connection-string config (`GraftConfig.setConfig(...)`) is **not supported yet** — use the
   > `host` field. Docs: https://docs.graftcode.com/security-and-trust/transport-security-tls-wss
 
-  **Local dev (localhost): browsers require TLS for HTTP/2 → use Vite as an HTTPS reverse proxy.**
+  **Local dev (localhost): browsers require TLS for HTTP/2 → front it with a custom Vite h2c proxy.**
   Browsers only speak HTTP/2 **over TLS (h2)** — they will NOT do cleartext HTTP/2 (**h2c**). The `gg`
-  containers typically expose the HTTP/2 endpoint as **h2c** (plaintext). So on localhost, when the JS
-  app calls the backend with JWT/auth headers, **don't point `GraftConfig.host` straight at the
-  container's h2c port** — instead run the **Vite dev server as a reverse proxy with a local
-  certificate** that terminates TLS and forwards `/h2` to the .NET container's h2c endpoint. Point
-  `GraftConfig.host` at the Vite origin (e.g. `https://localhost:5173/h2`).
+  containers expose the endpoint named **`/h2`, but it is actually `h2c`** (HTTP/2 cleartext, no TLS on
+  the container). So on localhost, when the JS app calls the backend with JWT/auth headers, **don't point
+  `GraftConfig.host` at the container's h2c port directly** (no TLS) and **don't use Vite's built-in
+  `server.proxy`** for it either.
+  - ⛔ **[VERIFIED blocker] Vite's `server.proxy` speaks HTTP/1.1 upstream — it CANNOT talk to gg's h2c
+    `/h2`.** You'll get `Parse Error: Expected HTTP/, RTSP/ or ICE/` then a `404`. Do **NOT** add `/h2`
+    to `server.proxy` (the `http2: true` http-proxy option does not reliably work here).
+  - ✅ **Use a custom Vite plugin that bridges to the container with `node:http2.connect()`** and keep
+    `server.proxy` empty. Set `https: true` (local cert so the BROWSER gets h2 over TLS), `strictPort:
+    true`, `port: 5173`. `https: true` with an empty `proxy: {}` makes Vite serve an HTTP/1.1 TLS server
+    to the browser (more reliable than the default `Http2SecureServer`); the plugin does the h2c hop.
 ```ts
-// vite.config.ts — local HTTPS + proxy /h2 → container h2c endpoint
+// vite.config.ts — local HTTPS to the browser; custom middleware bridges /<alias>/h2 → container h2c
 import { defineConfig } from "vite";
-import basicSsl from "@vitejs/plugin-basic-ssl";   // or use mkcert-generated certs via server.https
+import basicSsl from "@vitejs/plugin-basic-ssl";   // local dev cert (or supply your own via server.https)
+import http2 from "node:http2";
+
+// One entry per backend container (copy each h2c port from that service's gg logs / Vision):
+const H2C_UPSTREAMS: Record<string, string> = {
+  "/users/h2":  "http://localhost:8989",   // user-service container h2c
+  "/cities/h2": "http://localhost:8990",   // city-weather-service container h2c
+};
+
+function h2cProxy() {
+  return {
+    name: "graft-h2c-proxy",
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        const alias = Object.keys(H2C_UPSTREAMS).find((a) => req.url?.startsWith(a));
+        if (!alias) return next();
+        const client = http2.connect(H2C_UPSTREAMS[alias]);           // h2c hop to the container
+        const upstream = client.request({
+          ...req.headers, ":method": req.method, ":path": req.url.slice(alias.length) || "/",
+        });
+        req.pipe(upstream);
+        upstream.on("response", (h: any) => { res.writeHead(h[":status"] || 200, h); upstream.pipe(res); });
+        upstream.on("error", (e: any) => { res.statusCode = 502; res.end(String(e)); client.close(); });
+      });
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [basicSsl()],                            // local dev cert so the browser gets HTTP/2 over TLS
-  server: {
-    https: true,
-    proxy: {
-      "/h2": {
-        target: "http://localhost:8989",           // .NET service container's h2c (cleartext HTTP/2) port
-        changeOrigin: true,
-        // forward as HTTP/2 cleartext to the upstream container:
-        // @ts-expect-error http-proxy option
-        http2: true,
-      },
-    },
-  },
+  plugins: [basicSsl(), h2cProxy()],
+  server: { https: true, proxy: {}, strictPort: true, port: 5173 },
 });
 ```
 ```ts
-// Consumer: talk to the Vite HTTPS origin; Vite proxies to the container's h2c /h2 endpoint.
-GraftConfig.host = "https://localhost:5173/h2";
-GraftConfig.stateless = true;
-GraftConfig.setHeaders({ "Authorization": "Bearer token123" });
+// Consumer: NEVER hardcode :5173 — derive the origin so it always matches the running port.
+// One host per backend, each pointing at its own /<alias>/h2 (gg's /h2 == h2c, fronted by Vite TLS).
+UserGraftConfig.host  = window.location.origin + "/users/h2";
+CityGraftConfig.host  = window.location.origin + "/cities/h2";
+UserGraftConfig.stateless = true;
 ```
-  > Copy the exact upstream host/port from `gg` logs / Vision. In production, TLS is terminated by your
-  > real ingress/load balancer (see the .NET rule's external-host notes) — the Vite proxy is a
-  > **local-dev-only** convenience for getting HTTP/2-over-TLS on `localhost`.
+  > **Rule of thumb:** Browser → HTTPS (Vite) → **h2c proxy middleware** → container `:<port>/h2`. Never
+  > browser → container h2c directly (no TLS). Never Vite `server.proxy` → `/h2` (HTTP/1.1 mismatch).
+  > In production TLS is terminated by your real ingress/load balancer — this middleware is
+  > **local-dev-only**.
 
-  > Note on naming: **gg calls the endpoint `/h2`, but on the container it is really `h2c`** (HTTP/2
-  > **cleartext**, no TLS). That's exactly why the browser can't hit it directly and needs the Vite HTTPS
-  > proxy in front.
-
-  **More than one backend → one Vite proxy alias per service, each → its own h2c endpoint.** When the
-  frontend consumes several .NET services (each its own `gg` container), give each a **distinct proxy
-  path alias** on the Vite server and forward it to that container's h2c port. Then set each graft's
-  `GraftConfig.host` to the matching alias on the Vite origin.
-```ts
-// vite.config.ts — multiple backends, one alias each → the right container h2c endpoint
-export default defineConfig({
-  plugins: [basicSsl()],
-  server: {
-    https: true,
-    proxy: {
-      // alias           -> that service's container h2c port (gg's /h2 == h2c, no TLS)
-      "/invoices/h2": { target: "http://localhost:8989", changeOrigin: true, http2: true,
-                        rewrite: (p) => p.replace(/^\/invoices/, "") },
-      "/pricing/h2":  { target: "http://localhost:8990", changeOrigin: true, http2: true,
-                        rewrite: (p) => p.replace(/^\/pricing/, "") },
-    },
-  },
-});
-```
-```ts
-// Configure each generated graft against its own alias on the Vite origin:
-InvoiceGraftConfig.host = "https://localhost:5173/invoices/h2";
-PricingGraftConfig.host = "https://localhost:5173/pricing/h2";
-```
-  > Copy each upstream port from that service's `gg` logs / Vision — don't guess. Keep the alias names
-  > stable and descriptive (one per backend) so it's obvious which graft talks to which container.
+  **Stale-Vite / port pitfalls (Windows) — [VERIFIED]:**
+  - A broken/old Vite left on `5173` causes phantom `404`s after a "fix". Use **`strictPort: true`** so
+    Vite fails loudly instead of silently moving to `5174` (which then mismatches a hardcoded host).
+  - Provide a **`dev:clean`** script that frees `5173` before starting Vite, e.g.:
+    `"dev:clean": "npx kill-port 5173 && vite"` (Windows-safe; `kill-port` avoids PowerShell quirks).
+  - After changing graft packages or `vite.config`, **restart Vite and hard-refresh the browser
+    (Ctrl+Shift+R)** — HMR won't reliably pick up a reinstalled graft or a new proxy.
+  - A `node scripts/smoke.mjs` uses Node's native HTTP/2 client, NOT the browser `fetch` — **always
+    verify the JWT flow in the actual browser**, not only via the Node smoke test.
+  - Windows shell: PowerShell has **no `&&`** — chain with `;` (or run commands separately); use
+    **`curl.exe`** (not the `curl` alias); ensure **Docker Desktop is running** before `docker compose`.
 - **Stateful (WebSocket) + you need to send tokens → headers are impossible over the browser WS, so pass
   the tokens as method arguments** (the one sanctioned exception to "never a parameter"). Warn about the
   usual stateful caveats (single-instance pinning / session stickiness, remote object may no longer
@@ -216,6 +219,24 @@ PricingGraftConfig.host = "https://localhost:5173/pricing/h2";
   ask for WebSocket, **default to HTTP/2 + `stateless = true` + headers** (tokens stay out of the
   signature). Only pass tokens as arguments when they explicitly want a **stateful** WebSocket
   connection. (Server-to-server Node calls aren't affected — `wss://` + headers work there.)
+
+#### Local React + .NET Graftcode + JWT — do this on day one (checklist) — [VERIFIED post-mortem]
+Scaffold these **before** the first `npm run dev` (they remove the proxy-error → 404 → port-conflict →
+stale-server loop):
+1. `docker compose up -d`, then poll each service's `/npm` on its mapped WS port for the install command
+   (don't read full `docker logs`).
+2. **Never pass a fake `--projectKey`** in the `gg` `CMD` — omit it unless you have a real key
+   (a bogus key = containers fail to start with `JwtToken decode failed`).
+3. **Never** use Vite `server.proxy` for gg `/h2`; use the custom `node:http2.connect()` middleware above.
+4. `GraftConfig.host = window.location.origin + "/<alias>/h2"` — **never hardcode `:5173`**.
+5. `vite.config`: `https: true`, `proxy: {}`, `strictPort: true`, `port: 5173`, custom h2c plugin.
+6. Add `npm run dev:clean` to free `5173` before `vite`.
+7. Install **each** `@graft/*` package with **its own `--registry` GUID** (a single `npm install`
+   resolving both from one registry can 500) — see below.
+8. .NET producer: **case-insensitive `Authorization` header lookup** in `RequestContext` (see .NET rule).
+9. JS consumer: use **`invokeWithHeaders`** for JWT-protected calls (`setHeaders` after `Login()` doesn't
+   always apply to the very next call).
+10. After changing graft packages or `vite.config`: **restart Vite + hard-refresh** the browser.
 
 ### Type guidance for public signatures
 - Preferred: `string`, `number`, `boolean`, **plain arrays `T[]`** of supported values, plain objects of
@@ -284,6 +305,14 @@ console.log(await EnergyPriceCalculator.getPrice());
   separately** with **its own `--registry`** (copy the exact command from the `gg` logs); add quiet flags
   so install machinery doesn't flood context:
   `npm install --no-fund --no-audit --registry https://grft.dev/<GUID>__free @graft/<pkg>@<v>`
+  - **[VERIFIED] Don't try to resolve two `@graft/*` packages from one registry in a single `npm
+    install` — it 500s.** Do base deps first, then one install per graft with its own GUID:
+```bash
+npm install                                   # react, vite, etc. only
+npm install --registry https://grft.dev/<GUID1>__free @graft/nuget-userservice@1.0.0
+npm install --registry https://grft.dev/<GUID2>__free @graft/nuget-cityweatherservice@1.0.0
+# GUIDs come from `curl.exe http://localhost:8080/npm` and `.../8081/npm` after `docker compose up`
+```
 - Afterwards do **NOT** run a plain `npm install` that would resolve `@graft` from npmjs (→ 404). The
   **lockfile keeps the resolved `grft.dev` URLs**, so a reinstall **from the lockfile** is fine.
 - Get the install command itself from the route, not the full logs:
