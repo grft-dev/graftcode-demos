@@ -206,8 +206,8 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - `GraftConfig` exposes PascalCase STATIC FIELDS (not properties/methods): `Host` (e.g.
   `wss://<host>/ws`), `Stateless` (bool), `Module`. Set BOTH `Host` and `Stateless = true` for a
   stateless consumer so the whole nested DTO returns by value in ONE round-trip. This matters a lot
-  when the upstream is slow (free dyno cold start) or the DTO is deeply nested — otherwise each
-  nested getter is a separate network call.
+  when the upstream is slow or the DTO is deeply nested — otherwise each nested getter is a separate
+  network call.
 - Public method names and DTO shapes may differ from what you'd assume (e.g. the lookup was
   `GetWeatherForecast(string query, int days, string lang)` returning a nested WeatherAPI-style
   `Weather { location, current{condition{...}}, forecast }`, NOT a flat `GetCurrentWeather`). Always
@@ -228,12 +228,6 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - The registry **GUID rotates on every container restart** without `--projectKey`. At runtime only the
   **WS host/port** matters, not the GUID — so just keep `GraftConfig.Host` correct. Copy the current
   install command from the `gg` logs after each (re)start; don't reuse an old GUID.
-
-### Network & cost — free dynos cold-start [VERIFIED gotcha]
-- Free dynos cold-start slowly (a blind `curl` hung ~150s). Always pass **`--max-time`** to `curl` and
-  **warm up the root URL first** instead of waiting indefinitely.
-- In the service code that calls the external API, add **retry with backoff** so a cold upstream or a
-  transient 5xx doesn't fail the first real call.
 
 ### Name-collision guard
 - If your own service assembly shares a name with the remote one (both become
