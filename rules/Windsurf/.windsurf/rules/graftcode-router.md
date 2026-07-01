@@ -154,6 +154,9 @@ Hosting a graft produces a LOT of noisy output. Only the **result/errors** shoul
 the whole machinery. The language rules reference this section.
 1. **Fetch `gg.deb` quietly in EVERY Dockerfile.** The `.deb` is ~107 MB; a plain `wget` emits thousands
    of progress lines that flood `docker build`. Always use **`wget -q`** (or **`curl -sS`**).
+   **[VERIFIED] Don't hardcode `gg_linux_amd64.deb`** — on Apple Silicon / ARM it fails with
+   `package architecture (amd64) does not match system (arm64)`. Detect the arch:
+   `ARCH=$(dpkg --print-architecture)` then fetch `.../gg_linux_${ARCH}.deb` (works on amd64 and arm64).
 2. **Wait for readiness via the route, not logs.** Right before ready, `gg` prints install commands for
    ALL ecosystems (~40 noise lines). Do NOT read full `docker logs`; instead **poll the language route
    on the MAPPED port until 200** — both the readiness check AND the exact one-line install command:

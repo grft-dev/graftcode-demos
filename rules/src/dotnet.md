@@ -182,6 +182,9 @@ another service (shared `SigningKey`, `Issuer`, `Audience`).
 
 ### Dockerfile (reference)
 Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
+**[VERIFIED] Don't hardcode `gg_linux_amd64.deb`** — on Apple Silicon / ARM hosts `dpkg -i` fails with
+`package architecture (amd64) does not match system (arm64)`. Detect the arch and fetch the matching
+`.deb` (works on both amd64 and arm64):
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /usr/app
@@ -189,7 +192,8 @@ COPY . /usr/app/
 RUN dotnet build -v q
 RUN dotnet publish -c Release -o /usr/app/ -v q
 RUN apt-get update && apt-get install -y wget \
- && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && ARCH=$(dpkg --print-architecture) \
+ && wget -q -O /usr/app/gg.deb "https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_${ARCH}.deb" \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80

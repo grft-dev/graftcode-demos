@@ -149,6 +149,9 @@ Hosting a graft produces a LOT of noisy output. Only the **result/errors** shoul
 the whole machinery. The language rules reference this section.
 1. **Fetch `gg.deb` quietly in EVERY Dockerfile.** The `.deb` is ~107 MB; a plain `wget` emits thousands
    of progress lines that flood `docker build`. Always use **`wget -q`** (or **`curl -sS`**).
+   **[VERIFIED] Don't hardcode `gg_linux_amd64.deb`** — on Apple Silicon / ARM it fails with
+   `package architecture (amd64) does not match system (arm64)`. Detect the arch:
+   `ARCH=$(dpkg --print-architecture)` then fetch `.../gg_linux_${ARCH}.deb` (works on amd64 and arm64).
 2. **Wait for readiness via the route, not logs.** Right before ready, `gg` prints install commands for
    ALL ecosystems (~40 noise lines). Do NOT read full `docker logs`; instead **poll the language route
    on the MAPPED port until 200** — both the readiness check AND the exact one-line install command:
@@ -401,6 +404,9 @@ another service (shared `SigningKey`, `Issuer`, `Audience`).
 
 ### Dockerfile (reference)
 Fetch `gg.deb` quietly (`wget -q`) — the ~107 MB download's progress bar is pure token noise.
+**[VERIFIED] Don't hardcode `gg_linux_amd64.deb`** — on Apple Silicon / ARM hosts `dpkg -i` fails with
+`package architecture (amd64) does not match system (arm64)`. Detect the arch and fetch the matching
+`.deb` (works on both amd64 and arm64):
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /usr/app
@@ -408,7 +414,8 @@ COPY . /usr/app/
 RUN dotnet build -v q
 RUN dotnet publish -c Release -o /usr/app/ -v q
 RUN apt-get update && apt-get install -y wget \
- && wget -q -O /usr/app/gg.deb https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb \
+ && ARCH=$(dpkg --print-architecture) \
+ && wget -q -O /usr/app/gg.deb "https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_${ARCH}.deb" \
  && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
@@ -737,6 +744,17 @@ const invoice = InvoiceService.getInvoice("INV-1");
     `server.proxy` empty. Set `https: true` (local cert so the BROWSER gets h2 over TLS), `strictPort:
     true`, `port: 5173`. `https: true` with an empty `proxy: {}` makes Vite serve an HTTP/1.1 TLS server
     to the browser (more reliable than the default `Http2SecureServer`); the plugin does the h2c hop.
+  Two non-obvious things make or break this middleware (**both [VERIFIED]** — copying a naive version
+  fails in the browser):
+  - **Rewrite `:path` to `/h2`, not the stripped remainder.** The browser hits `/<alias>/h2` (e.g.
+    `/users/h2`); gg **always** serves the graft on **`/h2`**. Map `/users/h2` → `:path` **`/h2`** and
+    `/users/h2?x=1` → **`/h2?x=1`**. Forwarding the bare remainder (`/`) gives a **404** from gg.
+    Also normalize a trailing slash: remainder `"/"` → `""` (so `/users/h2/` still maps to `/h2`).
+  - **Never spread `req.headers` into `http2.connect().request()`.** Vite speaks HTTP/1.1 to the browser,
+    so hop-by-hop headers (`connection`, `keep-alive`, `proxy-connection`, `transfer-encoding`, `upgrade`,
+    `host`, `http2-settings`) are present and **HTTP/2 forbids them** → `Connection specific headers are
+    forbidden: "connection"`. Strip them (and any `:`-pseudo-headers) before the h2c hop, and strip the
+    HTTP/2 **response** pseudo-headers before `res.writeHead()`.
 ```ts
 // vite.config.ts — local HTTPS to the browser; custom middleware bridges /<alias>/h2 → container h2c
 import { defineConfig } from "vite";
@@ -749,6 +767,31 @@ const H2C_UPSTREAMS: Record<string, string> = {
   "/cities/h2": "http://localhost:8990",   // city-weather-service container h2c
 };
 
+// HTTP/1 hop-by-hop headers that HTTP/2 forbids — MUST be dropped before the h2c hop.
+const FORBIDDEN_H2_REQUEST_HEADERS = new Set([
+  "connection", "keep-alive", "proxy-connection",
+  "transfer-encoding", "upgrade", "host", "http2-settings",
+]);
+
+function buildH2RequestHeaders(req: any, alias: string) {
+  let remainder = req.url.slice(alias.length);
+  if (remainder === "/") remainder = "";                       // /users/h2/ → /h2 (not /h2/)
+  return {
+    ":method": req.method || "GET",
+    ":path": `/h2${remainder}`,                                // ⭐ CRITICAL: gg listens on /h2
+    ...Object.fromEntries(
+      Object.entries(req.headers)
+        .filter(([k]) => !FORBIDDEN_H2_REQUEST_HEADERS.has(k.toLowerCase()) && !k.startsWith(":"))
+        .map(([k, v]) => [k.toLowerCase(), v])
+    ),
+  };
+}
+
+// Drop HTTP/2 pseudo-headers (":status", …) before writing the HTTP/1.1 response to the browser.
+function buildHttp1ResponseHeaders(h2Headers: any) {
+  return Object.fromEntries(Object.entries(h2Headers).filter(([k]) => !k.startsWith(":")));
+}
+
 function h2cProxy() {
   return {
     name: "graft-h2c-proxy",
@@ -757,12 +800,14 @@ function h2cProxy() {
         const alias = Object.keys(H2C_UPSTREAMS).find((a) => req.url?.startsWith(a));
         if (!alias) return next();
         const client = http2.connect(H2C_UPSTREAMS[alias]);           // h2c hop to the container
-        const upstream = client.request({
-          ...req.headers, ":method": req.method, ":path": req.url.slice(alias.length) || "/",
-        });
+        const upstream = client.request(buildH2RequestHeaders(req, alias));
         req.pipe(upstream);
-        upstream.on("response", (h: any) => { res.writeHead(h[":status"] || 200, h); upstream.pipe(res); });
+        upstream.on("response", (headers: any) => {
+          res.writeHead(headers[":status"] || 200, buildHttp1ResponseHeaders(headers));
+          upstream.pipe(res);
+        });
         upstream.on("error", (e: any) => { res.statusCode = 502; res.end(String(e)); client.close(); });
+        res.on("close", () => client.close());
       });
     },
   };
@@ -796,6 +841,14 @@ UserGraftConfig.stateless = true;
     verify the JWT flow in the actual browser**, not only via the Node smoke test.
   - Windows shell: PowerShell has **no `&&`** — chain with `;` (or run commands separately); use
     **`curl.exe`** (not the `curl` alias); ensure **Docker Desktop is running** before `docker compose`.
+
+  **h2c proxy pitfalls — [VERIFIED]:**
+  | Error | Fix |
+  |-------|-----|
+  | `Connection specific headers are forbidden: "connection"` | Sanitize request headers — drop hop-by-hop headers before `http2.request()` (see `FORBIDDEN_H2_REQUEST_HEADERS`) |
+  | `404` on `https://localhost:5173/<alias>/h2` | Rewrite `:path` to **`/h2`**, not the stripped remainder (`/`) |
+  | `404` only with a trailing slash | Normalize `remainder === "/"` → `""` |
+  | Smoke test passes but the browser fails | `node http2.connect("https://localhost:5173/…")` won't work — Vite serves **HTTP/1.1 TLS**, not h2, so a Node h2 client fails on TLS ALPN. **Verify in the browser.** For proxy reachability only, use `curl -sk -X POST https://localhost:5173/users/h2` (expect **200**, not 404) |
 - **Stateful (WebSocket) + you need to send tokens → headers are impossible over the browser WS, so pass
   the tokens as method arguments** (the one sanctioned exception to "never a parameter"). Warn about the
   usual stateful caveats (single-instance pinning / session stickiness, remote object may no longer
