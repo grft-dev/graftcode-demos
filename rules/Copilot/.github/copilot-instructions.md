@@ -45,8 +45,11 @@ file is written — never start REST-first and apologize/redo later.
   them as **headers** (see **Auth tokens & headers** below).
 - **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory).
   WS/service calls on port 80; on gg v1.3.0 Vision's live HTTP routes are served on the **same (WS)
-  port** — read actual ports from `gg` logs, don't assume 81. Use `--projectKey` for stable IDs. See
-  **Token discipline** below for fetching `gg.deb` quietly and waiting on the readiness route, not logs.
+  port** — read actual ports from `gg` logs, don't assume 81. Use `--projectKey` for stable IDs, but
+  **[VERIFIED] never pass a fake/placeholder `--projectKey`** — a bogus value makes the container fail to
+  start with `Error decoding projectKey: JwtToken decode failed`. **Omit `--projectKey` entirely** unless
+  you have a real key from https://portal.graftcode.com . See **Token discipline** below for fetching
+  `gg.deb` quietly and waiting on the readiness route, not logs.
 - **Gateway/Vision output is the source of truth.** Never guess registry URLs, GUIDs, package names,
   imports, or config field names — copy them from `gg` logs / Graftcode Vision. On the consumer set
   `GraftConfig.host` (`.Host` on .NET).

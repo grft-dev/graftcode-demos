@@ -100,9 +100,11 @@ public static class InvoiceService {
     // ✅ token is NOT a parameter — it comes from the request headers
     public static Invoice GetInvoice(string invoiceId) {
         var headers = RequestContext.Current.GetHeaders();
-        var authToken = headers["Authorization"];      // validate/authorize here
-        var tenantId  = headers["X-Tenant-Id"];
-        // ... business logic ...
+        // ✅ [VERIFIED] header casing is NOT guaranteed — the JS client lowercases keys ("authorization").
+        // NEVER do headers["Authorization"] / TryGetValue("Authorization"); look up case-insensitively:
+        var authToken = headers.FirstOrDefault(h =>
+            string.Equals(h.Key, "Authorization", StringComparison.OrdinalIgnoreCase)).Value;
+        // ... validate/authorize, then business logic ...
     }
 }
 ```
@@ -320,6 +322,10 @@ graft packages resolve from grft.dev and everything else from nuget.org:
 5. Remote call returns upstream error (e.g. `502`) → third-party API issue; your module did execute. Add retries/fallback.
 6. JS/TS consumer breaks on a 64-bit value in **stateless** mode (value comes through as `bigint`) →
    a public `long` was used; **temporarily switch it to `int`** (or `string` for full 64-bit range).
+7. Container won't start, `Error decoding projectKey: JwtToken decode failed` → a fake `--projectKey` in
+   the `CMD`; **remove it** (only pass a real key from the portal).
+8. `Missing Authorization header` even with a token sent → header casing: the JS client lowercases keys.
+   Look up `Authorization` **case-insensitively** (`OrdinalIgnoreCase`), never `headers["Authorization"]`.
 
 ## Anti-patterns
 - Don't default to REST. Don't expose framework types (incl. `Task<T>`, `DateTime`).
@@ -337,6 +343,9 @@ graft packages resolve from grft.dev and everything else from nuget.org:
 - Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
   server-side from `RequestContext.Current.GetHeaders()` and send them client-side via
   `GraftConfig.SetHeaders(...)` / `GraftConfig.InvokeWithHeaders(...)` (`Graftcode.Context`).
+- Don't read headers with a case-sensitive key (`headers["Authorization"]`/`TryGetValue`) — the JS client
+  lowercases them; match `Authorization` with `OrdinalIgnoreCase`. And don't pass a fake `--projectKey`
+  (omit it unless you have a real portal key, or the container fails with `JwtToken decode failed`).
 - Don't reverse-engineer a published graft via reflection / MetadataLoadContext / decompilation /
   build-error iteration when Vision `/libraries` + `/nuget` give the contract and install command
   directly. Reach for reflection only if those routes are genuinely unavailable.
