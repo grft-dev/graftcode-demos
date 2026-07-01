@@ -142,6 +142,76 @@ const invoice = InvoiceService.getInvoice("INV-1");
 ```
   > Full connection-string config (`GraftConfig.setConfig(...)`) is **not supported yet** — use the
   > `host` field. Docs: https://docs.graftcode.com/security-and-trust/transport-security-tls-wss
+
+  **Local dev (localhost): browsers require TLS for HTTP/2 → use Vite as an HTTPS reverse proxy.**
+  Browsers only speak HTTP/2 **over TLS (h2)** — they will NOT do cleartext HTTP/2 (**h2c**). The `gg`
+  containers typically expose the HTTP/2 endpoint as **h2c** (plaintext). So on localhost, when the JS
+  app calls the backend with JWT/auth headers, **don't point `GraftConfig.host` straight at the
+  container's h2c port** — instead run the **Vite dev server as a reverse proxy with a local
+  certificate** that terminates TLS and forwards `/h2` to the .NET container's h2c endpoint. Point
+  `GraftConfig.host` at the Vite origin (e.g. `https://localhost:5173/h2`).
+```ts
+// vite.config.ts — local HTTPS + proxy /h2 → container h2c endpoint
+import { defineConfig } from "vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";   // or use mkcert-generated certs via server.https
+
+export default defineConfig({
+  plugins: [basicSsl()],                            // local dev cert so the browser gets HTTP/2 over TLS
+  server: {
+    https: true,
+    proxy: {
+      "/h2": {
+        target: "http://localhost:8989",           // .NET service container's h2c (cleartext HTTP/2) port
+        changeOrigin: true,
+        // forward as HTTP/2 cleartext to the upstream container:
+        // @ts-expect-error http-proxy option
+        http2: true,
+      },
+    },
+  },
+});
+```
+```ts
+// Consumer: talk to the Vite HTTPS origin; Vite proxies to the container's h2c /h2 endpoint.
+GraftConfig.host = "https://localhost:5173/h2";
+GraftConfig.stateless = true;
+GraftConfig.setHeaders({ "Authorization": "Bearer token123" });
+```
+  > Copy the exact upstream host/port from `gg` logs / Vision. In production, TLS is terminated by your
+  > real ingress/load balancer (see the .NET rule's external-host notes) — the Vite proxy is a
+  > **local-dev-only** convenience for getting HTTP/2-over-TLS on `localhost`.
+
+  > Note on naming: **gg calls the endpoint `/h2`, but on the container it is really `h2c`** (HTTP/2
+  > **cleartext**, no TLS). That's exactly why the browser can't hit it directly and needs the Vite HTTPS
+  > proxy in front.
+
+  **More than one backend → one Vite proxy alias per service, each → its own h2c endpoint.** When the
+  frontend consumes several .NET services (each its own `gg` container), give each a **distinct proxy
+  path alias** on the Vite server and forward it to that container's h2c port. Then set each graft's
+  `GraftConfig.host` to the matching alias on the Vite origin.
+```ts
+// vite.config.ts — multiple backends, one alias each → the right container h2c endpoint
+export default defineConfig({
+  plugins: [basicSsl()],
+  server: {
+    https: true,
+    proxy: {
+      // alias           -> that service's container h2c port (gg's /h2 == h2c, no TLS)
+      "/invoices/h2": { target: "http://localhost:8989", changeOrigin: true, http2: true,
+                        rewrite: (p) => p.replace(/^\/invoices/, "") },
+      "/pricing/h2":  { target: "http://localhost:8990", changeOrigin: true, http2: true,
+                        rewrite: (p) => p.replace(/^\/pricing/, "") },
+    },
+  },
+});
+```
+```ts
+// Configure each generated graft against its own alias on the Vite origin:
+InvoiceGraftConfig.host = "https://localhost:5173/invoices/h2";
+PricingGraftConfig.host = "https://localhost:5173/pricing/h2";
+```
+  > Copy each upstream port from that service's `gg` logs / Vision — don't guess. Keep the alias names
+  > stable and descriptive (one per backend) so it's obvious which graft talks to which container.
 - **Stateful (WebSocket) + you need to send tokens → headers are impossible over the browser WS, so pass
   the tokens as method arguments** (the one sanctioned exception to "never a parameter"). Warn about the
   usual stateful caveats (single-instance pinning / session stickiness, remote object may no longer
