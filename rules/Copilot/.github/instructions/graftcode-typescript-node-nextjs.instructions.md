@@ -125,8 +125,11 @@ transport by what the frontend needs:
 
   Enable and use HTTP/2 (per the gateway README + docs):
 ```bash
-# Host: start the gateway with the HTTP/2 server on (default --http2Port is 83)
-gg --modules <module> --http2Server --http2Port 8989
+# Host: HTTP/2 + headers needs ALL THREE flags (default --http2Port is 83):
+#   --useContext=1        -> populates RequestContext.Current (WITHOUT it, .Current is null!)
+#   --http2Server=1       -> enable the HTTP/2 server
+#   --corsAllowedOrigins=* -> allow the browser's cross-origin calls (tighten in prod)
+gg --modules <module> --useContext=1 --http2Server=1 --http2Port 8989 --corsAllowedOrigins=*
 ```
 ```ts
 // Consumer (browser): use the https:// HTTP/2 endpoint, NOT ws://; keep it stateless.
