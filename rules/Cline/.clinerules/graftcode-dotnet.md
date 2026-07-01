@@ -85,6 +85,46 @@ and needlessly leaks into the public surface.
   but the **`Message` still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom properties.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the **`Graftcode.Context`**
+package (`dotnet add package Graftcode.Context`). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  public signature purely business:
+```csharp
+using Graftcode.Context;
+
+public static class InvoiceService {
+    // ✅ token is NOT a parameter — it comes from the request headers
+    public static Invoice GetInvoice(string invoiceId) {
+        var headers = RequestContext.Current.GetHeaders();
+        var authToken = headers["Authorization"];      // validate/authorize here
+        var tenantId  = headers["X-Tenant-Id"];
+        // ... business logic ...
+    }
+}
+```
+  `RequestContext.Current` uses `[ThreadStatic]` for thread safety.
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```csharp
+using graft.nuget.InvoiceService;
+
+GraftConfig.SetHeaders(new Dictionary<string, string> {
+    { "Authorization", "Bearer token123" },
+    { "X-Tenant-Id", "acme" }
+});
+var invoice = InvoiceService.GetInvoice("INV-1");           // ✅ no token argument
+
+// Or scope headers to a single call (async variant also available):
+var one = GraftConfig.InvokeWithHeaders(
+    () => InvoiceService.GetInvoice("INV-1"),
+    new Dictionary<string, string> { { "Authorization", "Bearer other" } });
+// var oneAsync = await GraftConfig.InvokeWithHeadersAsync(async () => ..., headers);
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision.
 - The GUID **changes on every gateway restart** unless you pass `--projectKey` (stable IDs for CI/CD;
@@ -265,6 +305,9 @@ graft packages resolve from grft.dev and everything else from nuget.org:
   stickiness and handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions. Don't skip `GraftConfig.Host` on the consumer.
 - Don't nest consumer/test projects inside the service library folder.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.Current.GetHeaders()` and send them client-side via
+  `GraftConfig.SetHeaders(...)` / `GraftConfig.InvokeWithHeaders(...)` (`Graftcode.Context`).
 - Don't reverse-engineer a published graft via reflection / MetadataLoadContext / decompilation /
   build-error iteration when Vision `/libraries` + `/nuget` give the contract and install command
   directly. Reach for reflection only if those routes are genuinely unavailable.

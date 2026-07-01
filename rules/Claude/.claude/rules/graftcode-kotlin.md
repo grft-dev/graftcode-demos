@@ -99,6 +99,43 @@ discovered as a type and needlessly leaks into the public surface.
   but the **message still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom properties.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the JVM
+**`com.graftcode:graftcode-context`** dependency. Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway; backed by
+  `ThreadLocal`); keep the signature purely business:
+```kotlin
+import com.graftcode.context.RequestContext
+
+class InvoiceService {
+    companion object {
+        @JvmStatic
+        // ✅ token is NOT a parameter — it comes from the request headers
+        fun getInvoice(invoiceId: String): Invoice {
+            val headers = RequestContext.current().getHeaders()
+            val authToken = headers["Authorization"]   // validate/authorize here
+            val tenantId = headers["X-Tenant-Id"]
+            // ... business logic ...
+        }
+    }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```kotlin
+// import the generated GraftConfig + service exactly as shown in Vision
+GraftConfig.setHeaders(mapOf("Authorization" to "Bearer token123", "X-Tenant-Id" to "acme"))
+val invoice = InvoiceService.getInvoice("INV-1")          // ✅ no token argument
+
+// Or scope headers to a single invocation:
+val one = GraftConfig.invokeWithHeaders(
+    { InvoiceService.getInvoice("INV-1") },
+    mapOf("Authorization" to "Bearer other"))
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision
   (the **Configuration** install tab).
@@ -208,5 +245,8 @@ println(price)
   the object no longer existing on the callee.
 - Don't invent registries/GUIDs/coordinates/versions. Don't skip `GraftConfig.host` on the consumer.
 - Don't nest consumer/test projects inside the service module.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current().getHeaders()` and send them client-side via
+  `GraftConfig.setHeaders(...)` / `GraftConfig.invokeWithHeaders(...)` (`com.graftcode:graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.

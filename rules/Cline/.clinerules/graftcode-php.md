@@ -113,6 +113,41 @@ classes on the public surface.
   the caller** while the **message still propagates**. So: keep messages clear and consumer-friendly,
   and never rely on the consumer catching your specific exception class or reading custom properties.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the
+**`graftcode/graftcode-context`** package (`composer require graftcode/graftcode-context`, PHP 7.4+).
+Docs: https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  signature purely business:
+```php
+<?php
+use Graftcode\Context\RequestContext;
+
+class InvoiceService {
+    // ✅ token is NOT a parameter — it comes from the request headers
+    public static function getInvoice(string $invoiceId): Invoice {
+        $headers = RequestContext::current()->getHeaders();
+        $authToken = $headers['Authorization'] ?? null;   // validate/authorize here
+        $tenantId = $headers['X-Tenant-Id'] ?? null;
+        // ... business logic ...
+    }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally (copy the exact namespace from Vision):
+```php
+<?php
+GraftConfig::setHeaders(['Authorization' => 'Bearer token123', 'X-Tenant-Id' => 'acme']);
+$invoice = InvoiceService::getInvoice('INV-1');           // ✅ no token argument
+
+// Or scope headers to a single invocation:
+$one = GraftConfig::invokeWithHeaders(
+    fn() => InvoiceService::getInvoice('INV-1'),
+    ['Authorization' => 'Bearer other']);
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name (Composer/other), or version — copy from `gg` logs /
   Graftcode Vision (the **Configuration** install tab).
@@ -222,5 +257,8 @@ echo $price;
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions, the Dockerfile image, or the module path —
   confirm everything against `gg` output and Vision. Don't skip the `GraftConfig` host on the consumer.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext::current()->getHeaders()` and send them client-side via
+  `GraftConfig::setHeaders(...)` / `GraftConfig::invokeWithHeaders(...)` (`graftcode/graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.

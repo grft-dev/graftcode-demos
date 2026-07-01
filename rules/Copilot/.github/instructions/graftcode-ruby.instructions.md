@@ -110,6 +110,39 @@ classes part of the public contract.
   the caller** while the **message still propagates**. So: keep messages clear and consumer-friendly,
   and never rely on the consumer rescuing your specific exception class or reading custom attributes.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the **`graftcode-context`**
+gem (`gem 'graftcode-context'`, Ruby 3.1+). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  method purely business:
+```ruby
+require 'graftcode/context'
+
+class InvoiceService
+  # ✅ token is NOT a parameter — it comes from the request headers
+  def self.get_invoice(invoice_id)
+    headers = Graftcode::Context::RequestContext.current.get_headers
+    auth_token = headers['Authorization']   # validate/authorize here
+    tenant_id = headers['X-Tenant-Id']
+    # ... business logic ...
+  end
+end
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally (copy the exact require path from Vision):
+```ruby
+GraftConfig.set_headers({ 'Authorization' => 'Bearer token123', 'X-Tenant-Id' => 'acme' })
+invoice = InvoiceService.get_invoice('INV-1')     # ✅ no token argument
+
+# Or scope headers to a single invocation:
+one = GraftConfig.invoke_with_headers(
+  -> { InvoiceService.get_invoice('INV-1') },
+  { 'Authorization' => 'Bearer other' })
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name (gem/other), or version — copy from `gg` logs /
   Graftcode Vision (the **Configuration** install tab).
@@ -220,5 +253,8 @@ puts price
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions, the Dockerfile image, or the module path —
   confirm everything against `gg` output and Vision. Don't skip the `GraftConfig` host on the consumer.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current.get_headers` and send them client-side via
+  `GraftConfig.set_headers(...)` / `GraftConfig.invoke_with_headers(...)` (`graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.

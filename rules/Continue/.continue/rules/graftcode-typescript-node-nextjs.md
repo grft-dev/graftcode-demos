@@ -86,6 +86,41 @@ on the caller**, but the **message still propagates** — so write clear message
 consumer catching your specific error subclass or reading custom fields. (On .NET this means declaring
 the exception `internal`/`private`.)
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the **`graftcode-context`**
+package (`npm install graftcode-context`, Node >= 22). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  signature purely business:
+```ts
+import { RequestContext } from "graftcode-context";
+
+export class InvoiceService {
+  // ✅ token is NOT a parameter — it comes from the request headers
+  static getInvoice(invoiceId: string): Invoice {
+    const headers = RequestContext.current.getHeaders();
+    const authToken = headers["Authorization"];   // validate/authorize here
+    const tenantId = headers["X-Tenant-Id"];
+    // ... business logic ...
+  }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```ts
+import { GraftConfig, InvoiceService } from "<generated-graft-package>";
+
+GraftConfig.setHeaders({ "Authorization": "Bearer token123", "X-Tenant-Id": "acme" });
+const invoice = InvoiceService.getInvoice("INV-1");     // ✅ no token argument
+
+// Or scope headers to a single invocation:
+const one = GraftConfig.invokeWithHeaders(
+  () => InvoiceService.getInvoice("INV-1"),
+  { "Authorization": "Bearer other" });
+```
+
 ### Type guidance for public signatures
 - Preferred: `string`, `number`, `boolean`, **plain arrays `T[]`** of supported values, plain objects of
   supported values, `Promise<T>` for async results.
@@ -294,6 +329,9 @@ don't `await` field accessors (`get_X()` / `set_X()`); they return values synchr
 Don't create a throwaway probe/test project to learn the contract or check connectivity (read
 `/libraries`, verify in the real project). Don't run a plain `npm install` that resolves `@graft` from
 npmjs after installing each graft from its own `--registry` (reinstall from the lockfile instead).
+Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+server-side from `RequestContext.current.getHeaders()` and send them client-side via
+`GraftConfig.setHeaders(...)` / `GraftConfig.invokeWithHeaders(...)` (`graftcode-context`).
 
 **Final rule:** if something can be integrated via a Graft, it must not be integrated via hand-written
 REST, custom SDKs, or framework-specific API routes.
