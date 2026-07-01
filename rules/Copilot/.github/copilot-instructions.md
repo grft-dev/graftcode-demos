@@ -39,6 +39,10 @@ file is written — never start REST-first and apologize/redo later.
   arrays/iterators/streams or any tech-specific collection — use a plain array of a DTO/simple type.
 - **Custom exceptions stay off the public surface.** The gateway turns them into a plain exception on
   the caller, but the message propagates — write clear messages.
+- **Auth/identity travels in HEADERS, never as a method parameter.** JWTs, `Authorization`/bearer
+  tokens, API keys (`X-Api-Key`), session tokens, correlation ids, tenant ids and similar cross-cutting
+  request context are **NOT business arguments** — never add them to a public method signature. Send
+  them as **headers** (see **Auth tokens & headers** below).
 - **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory).
   WS/service calls on port 80; on gg v1.3.0 Vision's live HTTP routes are served on the **same (WS)
   port** — read actual ports from `gg` logs, don't assume 81. Use `--projectKey` for stable IDs. See
@@ -46,6 +50,29 @@ file is written — never start REST-first and apologize/redo later.
 - **Gateway/Vision output is the source of truth.** Never guess registry URLs, GUIDs, package names,
   imports, or config field names — copy them from `gg` logs / Graftcode Vision. On the consumer set
   `GraftConfig.host` (`.Host` on .NET).
+
+## Auth tokens & headers — never a method parameter, always a header
+Authentication/authorization and request-scoped identity must **never** be modeled as method
+arguments. If you catch yourself adding a `token`/`jwt`/`authorization`/`apiKey`/`sessionId`/`tenantId`
+parameter to a public method, **stop** — that data belongs in headers, propagated via the Graftcode
+Context library (`RequestContext`). See https://docs.graftcode.com/security-and-trust/graftcode-context.
+- **Producer (server side).** Do NOT accept the token as a parameter. Read it from the request context
+  inside the method: the **`RequestContext`** singleton from the `graftcode-context` package for the
+  language. Headers are set **automatically by Graftcode Gateway** on the server, so
+  `RequestContext.current` (or `.Current` / `.current()`) exposes `Authorization`, `X-Api-Key`,
+  `X-Correlation-Id`, `X-Tenant-Id`, etc. Validate/authorize there; the public signature stays purely
+  business (e.g. `getInvoice(invoiceId)`, not `getInvoice(invoiceId, jwt)`).
+- **Consumer (client / graft side).** Do NOT pass the token positionally. Set it as a header on the
+  generated **`GraftConfig`**:
+  - `GraftConfig.setHeaders({...})` — set once (e.g. at startup or right after login) for **all**
+    subsequent graft calls.
+  - `GraftConfig.invokeWithHeaders(() => Service.method(...), {...})` — scope headers to a **single**
+    invocation (per-request tokens, temporarily overriding globals).
+- **Package per language:** Node.js `graftcode-context`, .NET `Graftcode.Context`, Java/Kotlin
+  `com.graftcode:graftcode-context`, Python `graftcode-context`, PHP `graftcode/graftcode-context`,
+  Ruby `graftcode-context`. The matching language rule has the exact import + snippet.
+- **Never guess** header names or config method names — copy the exact ones your service expects and the
+  exact `GraftConfig`/`RequestContext` API from the docs / Vision output.
 
 ## Discovering an already-published graft (source of truth, do this FIRST)
 When the user points you at a Graftcode Vision deployment (e.g. https://<host>/), DO NOT decompile,

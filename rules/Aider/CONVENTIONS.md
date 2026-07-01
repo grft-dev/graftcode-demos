@@ -39,6 +39,10 @@ file is written — never start REST-first and apologize/redo later.
   arrays/iterators/streams or any tech-specific collection — use a plain array of a DTO/simple type.
 - **Custom exceptions stay off the public surface.** The gateway turns them into a plain exception on
   the caller, but the message propagates — write clear messages.
+- **Auth/identity travels in HEADERS, never as a method parameter.** JWTs, `Authorization`/bearer
+  tokens, API keys (`X-Api-Key`), session tokens, correlation ids, tenant ids and similar cross-cutting
+  request context are **NOT business arguments** — never add them to a public method signature. Send
+  them as **headers** (see **Auth tokens & headers** below).
 - **Host via Graftcode Gateway (`gg`).** Point `--modules` at the target module (JAR / DLL / directory).
   WS/service calls on port 80; on gg v1.3.0 Vision's live HTTP routes are served on the **same (WS)
   port** — read actual ports from `gg` logs, don't assume 81. Use `--projectKey` for stable IDs. See
@@ -46,6 +50,29 @@ file is written — never start REST-first and apologize/redo later.
 - **Gateway/Vision output is the source of truth.** Never guess registry URLs, GUIDs, package names,
   imports, or config field names — copy them from `gg` logs / Graftcode Vision. On the consumer set
   `GraftConfig.host` (`.Host` on .NET).
+
+## Auth tokens & headers — never a method parameter, always a header
+Authentication/authorization and request-scoped identity must **never** be modeled as method
+arguments. If you catch yourself adding a `token`/`jwt`/`authorization`/`apiKey`/`sessionId`/`tenantId`
+parameter to a public method, **stop** — that data belongs in headers, propagated via the Graftcode
+Context library (`RequestContext`). See https://docs.graftcode.com/security-and-trust/graftcode-context.
+- **Producer (server side).** Do NOT accept the token as a parameter. Read it from the request context
+  inside the method: the **`RequestContext`** singleton from the `graftcode-context` package for the
+  language. Headers are set **automatically by Graftcode Gateway** on the server, so
+  `RequestContext.current` (or `.Current` / `.current()`) exposes `Authorization`, `X-Api-Key`,
+  `X-Correlation-Id`, `X-Tenant-Id`, etc. Validate/authorize there; the public signature stays purely
+  business (e.g. `getInvoice(invoiceId)`, not `getInvoice(invoiceId, jwt)`).
+- **Consumer (client / graft side).** Do NOT pass the token positionally. Set it as a header on the
+  generated **`GraftConfig`**:
+  - `GraftConfig.setHeaders({...})` — set once (e.g. at startup or right after login) for **all**
+    subsequent graft calls.
+  - `GraftConfig.invokeWithHeaders(() => Service.method(...), {...})` — scope headers to a **single**
+    invocation (per-request tokens, temporarily overriding globals).
+- **Package per language:** Node.js `graftcode-context`, .NET `Graftcode.Context`, Java/Kotlin
+  `com.graftcode:graftcode-context`, Python `graftcode-context`, PHP `graftcode/graftcode-context`,
+  Ruby `graftcode-context`. The matching language rule has the exact import + snippet.
+- **Never guess** header names or config method names — copy the exact ones your service expects and the
+  exact `GraftConfig`/`RequestContext` API from the docs / Vision output.
 
 ## Discovering an already-published graft (source of truth, do this FIRST)
 When the user points you at a Graftcode Vision deployment (e.g. https://<host>/), DO NOT decompile,
@@ -227,6 +254,46 @@ and needlessly leaks into the public surface.
   but the **`Message` still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom properties.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the **`Graftcode.Context`**
+package (`dotnet add package Graftcode.Context`). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  public signature purely business:
+```csharp
+using Graftcode.Context;
+
+public static class InvoiceService {
+    // ✅ token is NOT a parameter — it comes from the request headers
+    public static Invoice GetInvoice(string invoiceId) {
+        var headers = RequestContext.Current.GetHeaders();
+        var authToken = headers["Authorization"];      // validate/authorize here
+        var tenantId  = headers["X-Tenant-Id"];
+        // ... business logic ...
+    }
+}
+```
+  `RequestContext.Current` uses `[ThreadStatic]` for thread safety.
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```csharp
+using graft.nuget.InvoiceService;
+
+GraftConfig.SetHeaders(new Dictionary<string, string> {
+    { "Authorization", "Bearer token123" },
+    { "X-Tenant-Id", "acme" }
+});
+var invoice = InvoiceService.GetInvoice("INV-1");           // ✅ no token argument
+
+// Or scope headers to a single call (async variant also available):
+var one = GraftConfig.InvokeWithHeaders(
+    () => InvoiceService.GetInvoice("INV-1"),
+    new Dictionary<string, string> { { "Authorization", "Bearer other" } });
+// var oneAsync = await GraftConfig.InvokeWithHeadersAsync(async () => ..., headers);
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision.
 - The GUID **changes on every gateway restart** unless you pass `--projectKey` (stable IDs for CI/CD;
@@ -310,8 +377,8 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - `GraftConfig` exposes PascalCase STATIC FIELDS (not properties/methods): `Host` (e.g.
   `wss://<host>/ws`), `Stateless` (bool), `Module`. Set BOTH `Host` and `Stateless = true` for a
   stateless consumer so the whole nested DTO returns by value in ONE round-trip. This matters a lot
-  when the upstream is slow (free dyno cold start) or the DTO is deeply nested — otherwise each
-  nested getter is a separate network call.
+  when the upstream is slow or the DTO is deeply nested — otherwise each nested getter is a separate
+  network call.
 - Public method names and DTO shapes may differ from what you'd assume (e.g. the lookup was
   `GetWeatherForecast(string query, int days, string lang)` returning a nested WeatherAPI-style
   `Weather { location, current{condition{...}}, forecast }`, NOT a flat `GetCurrentWeather`). Always
@@ -332,12 +399,6 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 - The registry **GUID rotates on every container restart** without `--projectKey`. At runtime only the
   **WS host/port** matters, not the GUID — so just keep `GraftConfig.Host` correct. Copy the current
   install command from the `gg` logs after each (re)start; don't reuse an old GUID.
-
-### Network & cost — free dynos cold-start [VERIFIED gotcha]
-- Free dynos cold-start slowly (a blind `curl` hung ~150s). Always pass **`--max-time`** to `curl` and
-  **warm up the root URL first** instead of waiting indefinitely.
-- In the service code that calls the external API, add **retry with backoff** so a cold upstream or a
-  transient 5xx doesn't fail the first real call.
 
 ### Name-collision guard
 - If your own service assembly shares a name with the remote one (both become
@@ -407,6 +468,9 @@ graft packages resolve from grft.dev and everything else from nuget.org:
   stickiness and handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions. Don't skip `GraftConfig.Host` on the consumer.
 - Don't nest consumer/test projects inside the service library folder.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.Current.GetHeaders()` and send them client-side via
+  `GraftConfig.SetHeaders(...)` / `GraftConfig.InvokeWithHeaders(...)` (`Graftcode.Context`).
 - Don't reverse-engineer a published graft via reflection / MetadataLoadContext / decompilation /
   build-error iteration when Vision `/libraries` + `/nuget` give the contract and install command
   directly. Reach for reflection only if those routes are genuinely unavailable.
@@ -499,6 +563,41 @@ leak into the public surface. At runtime the gateway converts a thrown custom er
 on the caller**, but the **message still propagates** — so write clear messages and never rely on the
 consumer catching your specific error subclass or reading custom fields. (On .NET this means declaring
 the exception `internal`/`private`.)
+
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the **`graftcode-context`**
+package (`npm install graftcode-context`, Node >= 22). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  signature purely business:
+```ts
+import { RequestContext } from "graftcode-context";
+
+export class InvoiceService {
+  // ✅ token is NOT a parameter — it comes from the request headers
+  static getInvoice(invoiceId: string): Invoice {
+    const headers = RequestContext.current.getHeaders();
+    const authToken = headers["Authorization"];   // validate/authorize here
+    const tenantId = headers["X-Tenant-Id"];
+    // ... business logic ...
+  }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```ts
+import { GraftConfig, InvoiceService } from "<generated-graft-package>";
+
+GraftConfig.setHeaders({ "Authorization": "Bearer token123", "X-Tenant-Id": "acme" });
+const invoice = InvoiceService.getInvoice("INV-1");     // ✅ no token argument
+
+// Or scope headers to a single invocation:
+const one = GraftConfig.invokeWithHeaders(
+  () => InvoiceService.getInvoice("INV-1"),
+  { "Authorization": "Bearer other" });
+```
 
 ### Type guidance for public signatures
 - Preferred: `string`, `number`, `boolean`, **plain arrays `T[]`** of supported values, plain objects of
@@ -708,6 +807,9 @@ don't `await` field accessors (`get_X()` / `set_X()`); they return values synchr
 Don't create a throwaway probe/test project to learn the contract or check connectivity (read
 `/libraries`, verify in the real project). Don't run a plain `npm install` that resolves `@graft` from
 npmjs after installing each graft from its own `--registry` (reinstall from the lockfile instead).
+Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+server-side from `RequestContext.current.getHeaders()` and send them client-side via
+`GraftConfig.setHeaders(...)` / `GraftConfig.invokeWithHeaders(...)` (`graftcode-context`).
 
 **Final rule:** if something can be integrated via a Graft, it must not be integrated via hand-written
 REST, custom SDKs, or framework-specific API routes.
@@ -817,6 +919,44 @@ discovered as a type and needlessly leaks into the public surface.
 - At runtime the gateway **converts a thrown custom exception into a plain exception on the caller**,
   but the **message still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom fields.
+
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the
+**`com.graftcode:graftcode-context`** dependency (Java 8+). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway; backed by
+  `ThreadLocal`); keep the signature purely business:
+```java
+import com.graftcode.context.RequestContext;
+import java.util.Map;
+
+public class InvoiceService {
+    // ✅ token is NOT a parameter — it comes from the request headers
+    public static Invoice getInvoice(String invoiceId) {
+        Map<String, String> headers = RequestContext.current().getHeaders();
+        String authToken = headers.get("Authorization");   // validate/authorize here
+        String tenantId  = headers.get("X-Tenant-Id");
+        // ... business logic ...
+    }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```java
+import graft.nuget.InvoiceService.GraftConfig;
+import graft.nuget.InvoiceService.InvoiceService;
+import java.util.Map;
+
+GraftConfig.setHeaders(Map.of("Authorization", "Bearer token123", "X-Tenant-Id", "acme"));
+var invoice = InvoiceService.getInvoice("INV-1");          // ✅ no token argument
+
+// Or scope headers to a single invocation:
+var one = GraftConfig.invokeWithHeaders(
+    () -> InvoiceService.getInvoice("INV-1"),
+    Map.of("Authorization", "Bearer other"));
+```
 
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name (`groupId`/`artifactId`), or version — copy from `gg`
@@ -945,6 +1085,9 @@ public class Main {
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/coordinates/versions. Don't skip `GraftConfig.host` on the consumer.
 - Don't nest consumer/test projects inside the service module.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current().getHeaders()` and send them client-side via
+  `GraftConfig.setHeaders(...)` / `GraftConfig.invokeWithHeaders(...)` (`com.graftcode:graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
 
@@ -1051,6 +1194,43 @@ discovered as a type and needlessly leaks into the public surface.
 - At runtime the gateway **converts a thrown custom exception into a plain exception on the caller**,
   but the **message still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom properties.
+
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the JVM
+**`com.graftcode:graftcode-context`** dependency. Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway; backed by
+  `ThreadLocal`); keep the signature purely business:
+```kotlin
+import com.graftcode.context.RequestContext
+
+class InvoiceService {
+    companion object {
+        @JvmStatic
+        // ✅ token is NOT a parameter — it comes from the request headers
+        fun getInvoice(invoiceId: String): Invoice {
+            val headers = RequestContext.current().getHeaders()
+            val authToken = headers["Authorization"]   // validate/authorize here
+            val tenantId = headers["X-Tenant-Id"]
+            // ... business logic ...
+        }
+    }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```kotlin
+// import the generated GraftConfig + service exactly as shown in Vision
+GraftConfig.setHeaders(mapOf("Authorization" to "Bearer token123", "X-Tenant-Id" to "acme"))
+val invoice = InvoiceService.getInvoice("INV-1")          // ✅ no token argument
+
+// Or scope headers to a single invocation:
+val one = GraftConfig.invokeWithHeaders(
+    { InvoiceService.getInvoice("INV-1") },
+    mapOf("Authorization" to "Bearer other"))
+```
 
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision
@@ -1161,6 +1341,9 @@ println(price)
   the object no longer existing on the callee.
 - Don't invent registries/GUIDs/coordinates/versions. Don't skip `GraftConfig.host` on the consumer.
 - Don't nest consumer/test projects inside the service module.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current().getHeaders()` and send them client-side via
+  `GraftConfig.setHeaders(...)` / `GraftConfig.invokeWithHeaders(...)` (`com.graftcode:graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
 
@@ -1265,6 +1448,40 @@ class needlessly leaks into the public surface.
 - At runtime the gateway **converts a thrown custom exception into a plain exception on the caller**,
   but the **message still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom attributes.
+
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public signature. Use the **`graftcode-context`** package
+(`pip install graftcode-context`, Python >= 3.9; async-safe via `contextvars`). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  signature purely business:
+```python
+from graftcode.context import RequestContext
+
+class InvoiceService:
+    @staticmethod
+    def get_invoice(invoice_id: str) -> Invoice:   # ✅ token is NOT a parameter
+        headers = RequestContext.current().get_headers()
+        auth_token = headers.get("Authorization")  # validate/authorize here
+        tenant_id = headers.get("X-Tenant-Id")
+        # ... business logic ...
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```python
+from <generated_graft_package> import GraftConfig, InvoiceService
+
+GraftConfig.set_headers({"Authorization": "Bearer token123", "X-Tenant-Id": "acme"})
+invoice = InvoiceService.get_invoice("INV-1")      # ✅ no token argument
+
+# Or scope headers to a single invocation (async variant also available):
+one = GraftConfig.invoke_with_headers(
+    lambda: InvoiceService.get_invoice("INV-1"),
+    {"Authorization": "Bearer other"})
+# one = await GraftConfig.invoke_with_headers_async(lambda: ..., headers)
+```
 
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision
@@ -1382,6 +1599,9 @@ os._exit(0)
   don't ship a stateful contract without warning about single-instance pinning / session stickiness and
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions. Don't skip `GraftConfig.host` on the consumer.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current().get_headers()` and send them client-side via
+  `GraftConfig.set_headers(...)` / `GraftConfig.invoke_with_headers(...)` (`graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
 
@@ -1497,6 +1717,41 @@ classes on the public surface.
   the caller** while the **message still propagates**. So: keep messages clear and consumer-friendly,
   and never rely on the consumer catching your specific exception class or reading custom properties.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the
+**`graftcode/graftcode-context`** package (`composer require graftcode/graftcode-context`, PHP 7.4+).
+Docs: https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  signature purely business:
+```php
+<?php
+use Graftcode\Context\RequestContext;
+
+class InvoiceService {
+    // ✅ token is NOT a parameter — it comes from the request headers
+    public static function getInvoice(string $invoiceId): Invoice {
+        $headers = RequestContext::current()->getHeaders();
+        $authToken = $headers['Authorization'] ?? null;   // validate/authorize here
+        $tenantId = $headers['X-Tenant-Id'] ?? null;
+        // ... business logic ...
+    }
+}
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally (copy the exact namespace from Vision):
+```php
+<?php
+GraftConfig::setHeaders(['Authorization' => 'Bearer token123', 'X-Tenant-Id' => 'acme']);
+$invoice = InvoiceService::getInvoice('INV-1');           // ✅ no token argument
+
+// Or scope headers to a single invocation:
+$one = GraftConfig::invokeWithHeaders(
+    fn() => InvoiceService::getInvoice('INV-1'),
+    ['Authorization' => 'Bearer other']);
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name (Composer/other), or version — copy from `gg` logs /
   Graftcode Vision (the **Configuration** install tab).
@@ -1606,6 +1861,9 @@ echo $price;
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions, the Dockerfile image, or the module path —
   confirm everything against `gg` output and Vision. Don't skip the `GraftConfig` host on the consumer.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext::current()->getHeaders()` and send them client-side via
+  `GraftConfig::setHeaders(...)` / `GraftConfig::invokeWithHeaders(...)` (`graftcode/graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
 
@@ -1720,6 +1978,39 @@ classes part of the public contract.
   the caller** while the **message still propagates**. So: keep messages clear and consumer-friendly,
   and never rely on the consumer rescuing your specific exception class or reading custom attributes.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public method signature. Use the **`graftcode-context`**
+gem (`gem 'graftcode-context'`, Ruby 3.1+). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  method purely business:
+```ruby
+require 'graftcode/context'
+
+class InvoiceService
+  # ✅ token is NOT a parameter — it comes from the request headers
+  def self.get_invoice(invoice_id)
+    headers = Graftcode::Context::RequestContext.current.get_headers
+    auth_token = headers['Authorization']   # validate/authorize here
+    tenant_id = headers['X-Tenant-Id']
+    # ... business logic ...
+  end
+end
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally (copy the exact require path from Vision):
+```ruby
+GraftConfig.set_headers({ 'Authorization' => 'Bearer token123', 'X-Tenant-Id' => 'acme' })
+invoice = InvoiceService.get_invoice('INV-1')     # ✅ no token argument
+
+# Or scope headers to a single invocation:
+one = GraftConfig.invoke_with_headers(
+  -> { InvoiceService.get_invoice('INV-1') },
+  { 'Authorization' => 'Bearer other' })
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name (gem/other), or version — copy from `gg` logs /
   Graftcode Vision (the **Configuration** install tab).
@@ -1830,5 +2121,8 @@ puts price
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions, the Dockerfile image, or the module path —
   confirm everything against `gg` output and Vision. Don't skip the `GraftConfig` host on the consumer.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current.get_headers` and send them client-side via
+  `GraftConfig.set_headers(...)` / `GraftConfig.invoke_with_headers(...)` (`graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.

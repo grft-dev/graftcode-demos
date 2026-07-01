@@ -104,6 +104,40 @@ class needlessly leaks into the public surface.
   but the **message still propagates**. So: keep messages clear and consumer-friendly, and never rely
   on the consumer catching your specific exception type or reading custom attributes.
 
+### Auth tokens & headers — never a method parameter (use `RequestContext` / `GraftConfig`)
+JWTs, `Authorization`/bearer tokens, `X-Api-Key`, session/correlation/tenant ids are **request context,
+not business arguments** — never add them to a public signature. Use the **`graftcode-context`** package
+(`pip install graftcode-context`, Python >= 3.9; async-safe via `contextvars`). Docs:
+https://docs.graftcode.com/security-and-trust/graftcode-context.
+
+- **Producer (server).** Read headers from `RequestContext` (set automatically by the gateway); keep the
+  signature purely business:
+```python
+from graftcode.context import RequestContext
+
+class InvoiceService:
+    @staticmethod
+    def get_invoice(invoice_id: str) -> Invoice:   # ✅ token is NOT a parameter
+        headers = RequestContext.current().get_headers()
+        auth_token = headers.get("Authorization")  # validate/authorize here
+        tenant_id = headers.get("X-Tenant-Id")
+        # ... business logic ...
+```
+- **Consumer (client).** Set the token as a header on `GraftConfig` — globally or per-call — never
+  positionally:
+```python
+from <generated_graft_package> import GraftConfig, InvoiceService
+
+GraftConfig.set_headers({"Authorization": "Bearer token123", "X-Tenant-Id": "acme"})
+invoice = InvoiceService.get_invoice("INV-1")      # ✅ no token argument
+
+# Or scope headers to a single invocation (async variant also available):
+one = GraftConfig.invoke_with_headers(
+    lambda: InvoiceService.get_invoice("INV-1"),
+    {"Authorization": "Bearer other"})
+# one = await GraftConfig.invoke_with_headers_async(lambda: ..., headers)
+```
+
 ### Gateway output is source of truth
 - NEVER guess registry URL, GUID, package name, or version — copy from `gg` logs / Graftcode Vision
   (the **Configuration** install tab).
@@ -220,5 +254,8 @@ os._exit(0)
   don't ship a stateful contract without warning about single-instance pinning / session stickiness and
   handling the object no longer existing on the callee.
 - Don't invent registries/GUIDs/package names/versions. Don't skip `GraftConfig.host` on the consumer.
+- Don't accept JWTs/`Authorization`/`X-Api-Key`/session/tenant tokens as method parameters — read them
+  server-side from `RequestContext.current().get_headers()` and send them client-side via
+  `GraftConfig.set_headers(...)` / `GraftConfig.invoke_with_headers(...)` (`graftcode-context`).
 
 **Final rule:** if something can be integrated via a graft, it MUST NOT be integrated via hand-written REST or custom SDKs.
