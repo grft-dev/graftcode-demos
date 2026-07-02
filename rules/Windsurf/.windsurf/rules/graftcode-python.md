@@ -213,6 +213,13 @@ os._exit(0)
   callee. Only use them when state across calls is truly required.
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's module files (`.py` + `pyproject.toml`) into the
+  caller's Docker image** on its local module path so they import locally; (2) set **`GraftConfig.host =
+  "inmemory"`** (or leave it unset — that's the default); (3) **do NOT add the consumed module to
+  `gg --modules`** — only the module that *exposes* the API is passed to `gg`; the merged one is just
+  loaded locally. Call sites are unchanged; set `host` back to `ws://`/`wss://` to return to microservice
+  mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
   UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't

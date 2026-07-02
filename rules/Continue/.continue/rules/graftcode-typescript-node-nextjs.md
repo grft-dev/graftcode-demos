@@ -346,6 +346,14 @@ in env config (never hardcode).
 4. Smoke-test the call **inside the real consumer project** — not in a throwaway project. Do not build a
    custom SDK or REST client; don't hardcode guessed names.
 
+> **Merge a graft to run in-process (monolith).** To make a Node service you consume via a graft run
+> inside the caller's process: (1) **copy the consumed service's compiled JS module into the caller's
+> Docker image** on its local path so it loads locally; (2) set **`GraftConfig.host = "inmemory"`** (or
+> leave it unset — that's the default); (3) **do NOT add the consumed module to `gg --modules`** — only
+> the module that *exposes* the API is passed to `gg`; the merged one is just loaded locally. Call sites
+> are unchanged; set `host` back to `wss://…/ws` (or the `https://…/h2` HTTP/2 endpoint) for microservice
+> mode.
+
 ```js
 // frontend/scripts/smoke.mjs — ONE reusable script in the target project (keep it; don't delete)
 import { GraftConfig, EnergyPriceCalculator } from "<generated-graft-package>";
