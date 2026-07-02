@@ -118,6 +118,21 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
 - **Never guess** header names or config method names — copy the exact ones your service expects and the
   exact `GraftConfig`/`RequestContext` API from the docs / Vision output.
 
+## Monolith ↔ microservice: merge a graft to run in-process (`inmemory`)
+Graftcode lets you flip a service you consume **via a graft** to run **in the same process** (a
+monolith) **without touching any call site** — the public method calls stay identical, you only change
+packaging + one config value. To merge a remote service into the caller:
+1. **Copy the consumed module's compiled output into the caller's Docker image / deployment** so it can be
+   loaded locally (its DLL / JAR / `.py` files / etc. on the caller's local module path or classpath).
+2. **Set the host to `inmemory` on the consumer** — `GraftConfig.host = "inmemory"` (`GraftConfig.Host`
+   on .NET). This is also the default when no host is set; with it, calls execute **in-process** instead
+   of over WS/HTTP2/TCP.
+3. **Do NOT add the consumed module to `gg --modules`.** Only the module that actually **exposes** the API
+   goes in the `gg` command; the other modules are just **loaded from the local folder** and used as
+   ordinary local dependencies.
+Flip that one host value back to a `ws://`/`wss://`/`https://…/h2` endpoint to return to microservice
+mode — no code changes on the call sites.
+
 ## Discovering an already-published graft (source of truth, do this FIRST)
 When the user points you at a Graftcode Vision deployment (e.g. https://<host>/), DO NOT decompile,
 reflect, or iterate on compiler errors to learn its contract. The Vision host exposes machine-readable
@@ -449,6 +464,12 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 
 - Default config is `host=inmemory` (monolith) — without setting `GraftConfig.Host` the client tries to
   load `<Assembly>.dll` locally → `FileNotFound`. Setting `Host` = microservice mode (flip one value).
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's compiled `.dll`(s) into the caller's Docker
+  image** so they load locally; (2) set **`GraftConfig.Host = "inmemory"`** (or leave it unset — that's
+  the default); (3) **do NOT add the consumed module to `gg --modules`** — only the module that *exposes*
+  the API is passed to `gg`; the merged one is just loaded from the local folder. Call sites are
+  unchanged; flip `Host` back to `ws://`/`wss://` to return to microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - Frontend (JS/TS): install via npm command from gg output; set `GraftConfig.host = "wss://<host>/ws"`.
 
@@ -925,6 +946,14 @@ in env config (never hardcode).
 4. Smoke-test the call **inside the real consumer project** — not in a throwaway project. Do not build a
    custom SDK or REST client; don't hardcode guessed names.
 
+> **Merge a graft to run in-process (monolith).** To make a Node service you consume via a graft run
+> inside the caller's process: (1) **copy the consumed service's compiled JS module into the caller's
+> Docker image** on its local path so it loads locally; (2) set **`GraftConfig.host = "inmemory"`** (or
+> leave it unset — that's the default); (3) **do NOT add the consumed module to `gg --modules`** — only
+> the module that *exposes* the API is passed to `gg`; the merged one is just loaded locally. Call sites
+> are unchanged; set `host` back to `wss://…/ws` (or the `https://…/h2` HTTP/2 endpoint) for microservice
+> mode.
+
 ```js
 // frontend/scripts/smoke.mjs — ONE reusable script in the target project (keep it; don't delete)
 import { GraftConfig, EnergyPriceCalculator } from "<generated-graft-package>";
@@ -1330,6 +1359,12 @@ public class Main {
   the callee. Only use them when state across calls is truly required.
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's built `.jar`(s) onto the caller's classpath /
+  into its Docker image** so they load locally; (2) set **`GraftConfig.host = "inmemory"`** (or leave it
+  unset — that's the default); (3) **do NOT add the consumed module to `gg --modules`** — only the module
+  that *exposes* the API is passed to `gg`; the merged one is just loaded locally. Call sites are
+  unchanged; set `host` back to `ws://`/`wss://` to return to microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
   UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
@@ -1584,6 +1619,12 @@ println(price)
   callee. Only use them when state across calls is truly required.
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's built `.jar`(s) onto the caller's classpath /
+  into its Docker image** so they load locally; (2) set **`GraftConfig.host = "inmemory"`** (or leave it
+  unset — that's the default); (3) **do NOT add the consumed module to `gg --modules`** — only the module
+  that *exposes* the API is passed to `gg`; the merged one is just loaded locally. Call sites are
+  unchanged; set `host` back to `ws://`/`wss://` to return to microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
   UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
@@ -1843,6 +1884,13 @@ os._exit(0)
   callee. Only use them when state across calls is truly required.
 - Without `GraftConfig.host` set, the client runs in monolith/in-memory mode and tries to load the
   module locally — set `host` to flip into microservice mode.
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's module files (`.py` + `pyproject.toml`) into the
+  caller's Docker image** on its local module path so they import locally; (2) set **`GraftConfig.host =
+  "inmemory"`** (or leave it unset — that's the default); (3) **do NOT add the consumed module to
+  `gg --modules`** — only the module that *exposes* the API is passed to `gg`; the merged one is just
+  loaded locally. Call sites are unchanged; set `host` back to `ws://`/`wss://` to return to microservice
+  mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
   UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
@@ -2106,6 +2154,12 @@ echo $price;
   callee. Only use them when state across calls is truly required.
 - Without the host set, the client runs in monolith/in-memory mode — set `host` to flip into
   microservice mode.
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's PHP class files into the caller's Docker image**
+  on its local module path so they load locally; (2) set the `GraftConfig` **host to `inmemory`** (or
+  leave it unset — that's the default); (3) **do NOT add the consumed module to `gg --modules`** — only
+  the module that *exposes* the API is passed to `gg`; the merged one is just loaded locally. Call sites
+  are unchanged; set the host back to `ws://`/`wss://` to return to microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
   UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't
@@ -2365,6 +2419,12 @@ puts price
   callee. Only use them when state across calls is truly required.
 - Without the host set, the client runs in monolith/in-memory mode — set `host` to flip into
   microservice mode.
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's Ruby class files into the caller's Docker image**
+  on its local module path so they load locally; (2) set the `GraftConfig` **host to `inmemory`** (or
+  leave it unset — that's the default); (3) **do NOT add the consumed module to `gg --modules`** — only
+  the module that *exposes* the API is passed to `gg`; the merged one is just loaded locally. Call sites
+  are unchanged; set the host back to `ws://`/`wss://` to return to microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - **Token discipline (see router):** learn the contract from `/libraries` but **don't paste the whole
   UGM** — save it and `grep` for `STATIC_METHOD`/`INSTANCE_FIELD`/`TYPE_USAGE_*`. After install, don't

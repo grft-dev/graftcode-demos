@@ -235,6 +235,12 @@ Console.WriteLine($"{weather.Location}: {weather.TemperatureC} °C, {weather.Con
 
 - Default config is `host=inmemory` (monolith) — without setting `GraftConfig.Host` the client tries to
   load `<Assembly>.dll` locally → `FileNotFound`. Setting `Host` = microservice mode (flip one value).
+- **Merge a graft to run in-process (monolith).** To make a service you consume via a graft run inside
+  the caller's process: (1) **copy the consumed service's compiled `.dll`(s) into the caller's Docker
+  image** so they load locally; (2) set **`GraftConfig.Host = "inmemory"`** (or leave it unset — that's
+  the default); (3) **do NOT add the consumed module to `gg --modules`** — only the module that *exposes*
+  the API is passed to `gg`; the merged one is just loaded from the local folder. Call sites are
+  unchanged; flip `Host` back to `ws://`/`wss://` to return to microservice mode.
 - Server-side exceptions propagate to the caller (e.g. upstream `502`). Make remote methods resilient.
 - Frontend (JS/TS): install via npm command from gg output; set `GraftConfig.host = "wss://<host>/ws"`.
 

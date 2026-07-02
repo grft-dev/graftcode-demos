@@ -123,6 +123,21 @@ Context library (`RequestContext`). See https://docs.graftcode.com/security-and-
 - **Never guess** header names or config method names — copy the exact ones your service expects and the
   exact `GraftConfig`/`RequestContext` API from the docs / Vision output.
 
+## Monolith ↔ microservice: merge a graft to run in-process (`inmemory`)
+Graftcode lets you flip a service you consume **via a graft** to run **in the same process** (a
+monolith) **without touching any call site** — the public method calls stay identical, you only change
+packaging + one config value. To merge a remote service into the caller:
+1. **Copy the consumed module's compiled output into the caller's Docker image / deployment** so it can be
+   loaded locally (its DLL / JAR / `.py` files / etc. on the caller's local module path or classpath).
+2. **Set the host to `inmemory` on the consumer** — `GraftConfig.host = "inmemory"` (`GraftConfig.Host`
+   on .NET). This is also the default when no host is set; with it, calls execute **in-process** instead
+   of over WS/HTTP2/TCP.
+3. **Do NOT add the consumed module to `gg --modules`.** Only the module that actually **exposes** the API
+   goes in the `gg` command; the other modules are just **loaded from the local folder** and used as
+   ordinary local dependencies.
+Flip that one host value back to a `ws://`/`wss://`/`https://…/h2` endpoint to return to microservice
+mode — no code changes on the call sites.
+
 ## Discovering an already-published graft (source of truth, do this FIRST)
 When the user points you at a Graftcode Vision deployment (e.g. https://<host>/), DO NOT decompile,
 reflect, or iterate on compiler errors to learn its contract. The Vision host exposes machine-readable
