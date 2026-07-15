@@ -1,0 +1,26 @@
+---
+description: High-level working principles for the agent
+alwaysApply: true
+---
+
+# Agent working principles
+
+## Always apply provided knowledge
+
+- **All provided skills and specs must always be applied**, on every task, whether or not they are explicitly referenced in the prompt.
+
+## Environment
+
+- Environment is ready (dotnet 9.0.315, docker 28.4.0). **Don't check it.**
+
+## New projects
+
+- Whenever we add a project in a new technology, **immediately create a proper `.gitignore`** for that technology (e.g. .NET, Node.js/React).
+
+## Project specifications
+
+Follow the specifications in `.cursor/specs/`:
+
+- **Architecture** — `.cursor/specs/architecture.md` (React.js/JS frontend without a container, .NET Core 9.0 in Docker, in-memory data).
+- **Security** — `.cursor/specs/security.md` (JWT authentication, token validation on business-logic endpoints).
+- **Code style** — `.cursor/specs/code-style.md` (full controllers, models, `Program.cs` and methods; no minimal API, expression-bodied members, or DTO records).

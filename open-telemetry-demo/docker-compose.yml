@@ -1,0 +1,22 @@
+services:
+  user-service:
+    build:
+      context: ./services/UserService
+    ports:
+      - "8080:80"
+      - "8989:8989"
+    networks:
+      - app-network
+
+  city-weather-service:
+    build:
+      context: ./services/CityWeatherService
+    ports:
+      - "8081:80"
+      - "8990:8989"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

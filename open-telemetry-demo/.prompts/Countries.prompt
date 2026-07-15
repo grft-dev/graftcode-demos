@@ -1,0 +1,1 @@
+Add ability on backend business logic that return array with countries and make it callable remotely without authentication, don't change anything on frontend yet. Don't build, don't test, don't run. Just implement.

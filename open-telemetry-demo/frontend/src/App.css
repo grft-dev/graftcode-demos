@@ -1,0 +1,179 @@
+:root {
+  color: #0f172a;
+  background:
+    radial-gradient(circle at top left, #dbeafe, transparent 35%),
+    radial-gradient(circle at bottom right, #fef3c7, transparent 30%),
+    #f8fafc;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #dbe3f0;
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  padding: 1.5rem;
+}
+
+.login-card {
+  max-width: 420px;
+  margin: 4rem auto;
+}
+
+.subtitle,
+.hint,
+.status {
+  color: #475569;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+input {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+}
+
+button.secondary {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.error {
+  color: #b91c1c;
+  margin: 0;
+}
+
+.dashboard {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.top-bar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.top-bar h1,
+.login-card h1 {
+  margin: 0 0 0.25rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 320px 1fr;
+}
+
+.city-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.city-button {
+  width: 100%;
+  text-align: left;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.city-button.active {
+  background: #2563eb;
+  color: white;
+}
+
+.weather-card h2 span {
+  color: #64748b;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.temperature {
+  font-size: 3rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+.condition {
+  color: #334155;
+  font-size: 1.2rem;
+  margin-top: 0;
+}
+
+.weather-details {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 1.5rem 0 0;
+}
+
+.weather-details div {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.weather-details dt {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.weather-details dd {
+  font-weight: 700;
+  margin: 0.25rem 0 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}

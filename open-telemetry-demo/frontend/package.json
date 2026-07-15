@@ -1,0 +1,27 @@
+{
+  "name": "city-weather-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "setup-grafts": "node scripts/install-grafts.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "dev": "vite",
+    "dev:clean": "npx kill-port 5173 ; vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@graft/nuget-cityweatherservice": "^1.0.0",
+    "@graft/nuget-userservice": "^1.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "kill-port": "^2.0.1",
+    "vite": "^6.0.7",
+    "vite-plugin-node-polyfills": "^0.23.0"
+  }
+}

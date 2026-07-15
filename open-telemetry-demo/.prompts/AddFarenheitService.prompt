@@ -1,0 +1,1 @@
+add new backend service that weather service consume via websocket and its converting temperature from celsius to farenheit. as of now make just that returning any weather the weather service always calls the other to convert and returns alreayd in farenheits dont make any extra functionality on frontend and dont change contracts between frontend and backend

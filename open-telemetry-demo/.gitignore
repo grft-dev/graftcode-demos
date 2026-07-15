@@ -1,0 +1,22 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Node
+node_modules/
+dist/
+*.log
+
+# Env / secrets
+.env
+.env.local
+
+# Probe artifacts
+ugm-weather.json
+
+# OS
+.DS_Store
+Thumbs.db
