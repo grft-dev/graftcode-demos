@@ -6,13 +6,24 @@
     <RootNamespace>CityWeatherService</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GraftCodeLoggerProject Condition="'$(GraftCodeLoggerProject)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\graftcode-logger\src\netcore\GraftCodeNetcoreLogger\GraftCodeNetcoreLogger.csproj</GraftCodeLoggerProject>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Graftcode.Context" Version="1.0.0" />
+    <PackageReference Include="graft.nuget.accountservice" Version="1.0.0" />
+    <PackageReference Include="graft.nuget.temperatureconversionservice" Version="1.0.0" />
     <PackageReference Include="graft.nuget.weatherservice" Version="1.0.0" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.3.1" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(GraftCodeLoggerProject)')">
+    <ProjectReference Include="$(GraftCodeLoggerProject)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="!Exists('$(GraftCodeLoggerProject)')">
+    <PackageReference Include="GraftCodeNetcoreLogger" Version="3.0.5" />
   </ItemGroup>
 
 </Project>

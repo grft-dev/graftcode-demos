@@ -13,8 +13,13 @@ export default defineConfig({
     port: 5173,
   },
   resolve: {
+    preserveSymlinks: true,
     alias: {
       crypto: "/src/shims/crypto.js",
     },
+  },
+  optimizeDeps: {
+    // Local file: dependency; avoid stale pre-bundled copies after logger rebuilds.
+    exclude: ["@graftcode/browser-logger", "@graft/nuget-cityweatherservice", "@graft/nuget-userservice"],
   },
 });

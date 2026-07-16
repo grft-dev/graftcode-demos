@@ -1,5 +1,6 @@
 import { GraftConfig as UserGraftConfig, UserAccountService } from "@graft/nuget-userservice";
 import { GraftConfig as WeatherGraftConfig, WeatherFacade } from "@graft/nuget-cityweatherservice";
+import { runTelemetryOperation } from "../telemetry.js";
 
 UserGraftConfig.host = `${window.location.origin}/users/h2`;
 UserGraftConfig.stateless = true;
@@ -13,16 +14,46 @@ export function clearAuthToken() {
 }
 
 export async function login(username, password) {
-  const result = await UserAccountService.Login(username, password);
-  UserGraftConfig.setHeaders({ Authorization: `Bearer ${result.get_Token()}` });
-  WeatherGraftConfig.setHeaders({ Authorization: `Bearer ${result.get_Token()}` });
-  return result;
+  return runTelemetryOperation(
+    "login",
+    async () => {
+      const result = await UserAccountService.login(username, password);
+      UserGraftConfig.setHeaders({ Authorization: `Bearer ${result.get_token()}` });
+      WeatherGraftConfig.setHeaders({ Authorization: `Bearer ${result.get_token()}` });
+      return result;
+    },
+    {
+      graftPackage: UserGraftConfig.graftName,
+      service: "UserAccountService",
+      method: "Login",
+      transport: "h2",
+    },
+  );
 }
 
 export async function getCities() {
-  return UserAccountService.GetCities();
+  return runTelemetryOperation(
+    "getCities",
+    () => UserAccountService.getCities(),
+    {
+      graftPackage: UserGraftConfig.graftName,
+      service: "UserAccountService",
+      method: "GetCities",
+      transport: "h2",
+    },
+  );
 }
 
 export async function getWeather(cityName) {
-  return WeatherFacade.GetWeather(cityName);
+  const weather = await runTelemetryOperation(
+    "getWeather",
+    () => WeatherFacade.getWeather(cityName),
+    {
+      graftPackage: WeatherGraftConfig.graftName,
+      service: "WeatherFacade",
+      method: "GetWeather",
+      transport: "h2",
+    },
+  );
+  return weather;
 }

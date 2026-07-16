@@ -8,6 +8,8 @@ public class CityWeather
 
     public double TemperatureC { get; set; }
 
+    public double TemperatureF { get; set; }
+
     public string Condition { get; set; } = string.Empty;
 
     public int Humidity { get; set; }

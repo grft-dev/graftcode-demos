@@ -1,0 +1,2 @@
+@graftcode:registry=https://pkgs.dev.azure.com/sdncenterspzoo/GRAFTCODE/_packaging/GraftCodeDevPackages/npm/registry/
+always-auth=true

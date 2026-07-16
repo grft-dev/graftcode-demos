@@ -1,13 +1,17 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0
-WORKDIR /usr/app
-COPY . /usr/app/
-RUN dotnet build -v q
-RUN dotnet publish -c Release -o /usr/app/ -v q
+WORKDIR /src
+COPY --from=graftcode_logger . /src/graftcode-logger/
+COPY . /src/service/
+WORKDIR /src/service
+COPY NuGet.Docker.config ./NuGet.config
+RUN dotnet publish UserService.csproj -c Release -o /app -v q \
+    -p:GraftCodeLoggerProject=/src/graftcode-logger/GraftCodeNetcoreLogger.csproj
+WORKDIR /app
 RUN apt-get update && apt-get install -y wget \
- && ARCH=$(dpkg --print-architecture) \
- && wget -q -O /usr/app/gg.deb "https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_${ARCH}.deb" \
- && dpkg -i /usr/app/gg.deb && rm /usr/app/gg.deb \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && ARCH=$(dpkg --print-architecture) \
+    && wget -q -O /app/gg.deb "https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_${ARCH}.deb" \
+    && dpkg -i /app/gg.deb && rm /app/gg.deb \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
 EXPOSE 8989
 CMD ["gg", "--modules", "UserService.dll", "--useContext=1", "--http2Server=1", "--http2Port", "8989", "--corsAllowedOrigins=*"]

@@ -3,8 +3,7 @@ WORKDIR /src
 COPY --from=graftcode_logger . /src/graftcode-logger/
 COPY . /src/service/
 WORKDIR /src/service
-COPY NuGet.Docker.config ./NuGet.config
-RUN dotnet publish CityWeatherService.csproj -c Release -o /app -v q \
+RUN dotnet publish AccountService.csproj -c Release -r linux-x64 -o /app -v q \
     -p:GraftCodeLoggerProject=/src/graftcode-logger/GraftCodeNetcoreLogger.csproj
 WORKDIR /app
 RUN apt-get update && apt-get install -y wget \
@@ -14,4 +13,4 @@ RUN apt-get update && apt-get install -y wget \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 80
 EXPOSE 8989
-CMD ["gg", "--modules", "CityWeatherService.dll", "--useContext=1", "--http2Server=1", "--http2Port", "8989", "--corsAllowedOrigins=*"]
+CMD ["gg", "--modules", "AccountService.dll", "--useContext=1", "--http2Server=1", "--http2Port", "8989", "--corsAllowedOrigins=*"]

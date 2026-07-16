@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <AssemblyName>UserService</AssemblyName>
-    <RootNamespace>UserService</RootNamespace>
+    <AssemblyName>TemperatureConversionService</AssemblyName>
+    <RootNamespace>TemperatureConversionService</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GraftCodeLoggerProject Condition="'$(GraftCodeLoggerProject)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\graftcode-logger\src\netcore\GraftCodeNetcoreLogger\GraftCodeNetcoreLogger.csproj</GraftCodeLoggerProject>
@@ -11,9 +11,6 @@
 
   <ItemGroup>
     <PackageReference Include="Graftcode.Context" Version="1.0.0" />
-    <PackageReference Include="graft.nuget.accountservice" Version="1.0.0" />
-    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.3.1" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.1" />
   </ItemGroup>
 
   <ItemGroup Condition="Exists('$(GraftCodeLoggerProject)')">
@@ -25,3 +22,4 @@
   </ItemGroup>
 
 </Project>
+

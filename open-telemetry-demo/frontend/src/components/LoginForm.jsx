@@ -15,8 +15,8 @@ export default function LoginForm({ onLogin }) {
     try {
       const result = await login(username, password);
       onLogin({
-        token: result.get_Token(),
-        username: result.get_Username(),
+        token: result.get_token(),
+        username: result.get_username(),
       });
     } catch (submitError) {
       setError(submitError?.message ?? String(submitError));

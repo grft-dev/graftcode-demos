@@ -1,19 +1,79 @@
 services:
+  azure-sql:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${AZURE_SQL_SA_PASSWORD:-CityWeatherDemo123!}
+    ports:
+      - "1433:1433"
+    networks:
+      - app-network
+
+  account-service:
+    build:
+      context: ./services/AccountService
+      additional_contexts:
+        graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
+    ports:
+      - "8082:80"
+      - "8991:8989"
+    environment:
+      AZURE_SQL_CONNECTION_STRING: Server=azure-sql,1433;Database=master;User Id=sa;Password=${AZURE_SQL_SA_PASSWORD:-CityWeatherDemo123!};TrustServerCertificate=True;Encrypt=False
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+      WEBSITE_SITE_NAME: GraftCodeOpenTelemetryDemoAccountServiceNetcore
+    depends_on:
+      azure-sql:
+        condition: service_started
+    networks:
+      - app-network
+
+  temperature-conversion-service:
+    build:
+      context: ./services/TemperatureConversionService
+      additional_contexts:
+        graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
+    ports:
+      - "8083:80"
+      - "8992:8989"
+    environment:
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+      WEBSITE_SITE_NAME: GraftCodeOpenTelemetryDemoTemperatureConversionServiceNetcore
+    networks:
+      - app-network
+
   user-service:
     build:
       context: ./services/UserService
+      additional_contexts:
+        graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
     ports:
       - "8080:80"
       - "8989:8989"
+    environment:
+      ACCOUNT_SERVICE_GRAFT_HOST: ws://account-service/ws
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+      WEBSITE_SITE_NAME: GraftCodeOpenTelemetryDemoUserServiceNetcore
+    depends_on:
+      - account-service
     networks:
       - app-network
 
   city-weather-service:
     build:
       context: ./services/CityWeatherService
+      additional_contexts:
+        graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
     ports:
       - "8081:80"
       - "8990:8989"
+    environment:
+      ACCOUNT_SERVICE_GRAFT_HOST: ws://account-service/ws
+      TEMPERATURE_CONVERSION_SERVICE_GRAFT_HOST: ws://temperature-conversion-service/ws
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+      WEBSITE_SITE_NAME: GraftCodeOpenTelemetryDemoCityWeatherServiceNetcore
+    depends_on:
+      - account-service
+      - temperature-conversion-service
     networks:
       - app-network
 
