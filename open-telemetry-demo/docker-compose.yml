@@ -29,15 +29,17 @@ services:
 
   temperature-conversion-service:
     build:
-      context: ./services/TemperatureConversionService
+      context: .
+      dockerfile: services/TemperatureConversionService/Dockerfile
       additional_contexts:
         graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
-    ports:
-      - "8083:80"
-      - "8992:8989"
     environment:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
       WEBSITE_SITE_NAME: GraftCodeOpenTelemetryDemoTemperatureConversionServiceNetcore
+      SERVICE_BUS_CONNECTION_STRING: ${SERVICE_BUS_CONNECTION_STRING:-}
+      SERVICE_BUS_QUEUE: ${SERVICE_BUS_QUEUE:-}
+      SERVICE_BUS_REPLY_QUEUE: ${SERVICE_BUS_REPLY_QUEUE:-}
+      SERVICE_BUS_RPC_TIMEOUT_MS: ${SERVICE_BUS_RPC_TIMEOUT_MS:-30000}
     networks:
       - app-network
 
@@ -60,7 +62,8 @@ services:
 
   city-weather-service:
     build:
-      context: ./services/CityWeatherService
+      context: .
+      dockerfile: services/CityWeatherService/Dockerfile
       additional_contexts:
         graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
     ports:
@@ -68,9 +71,12 @@ services:
       - "8990:8989"
     environment:
       ACCOUNT_SERVICE_GRAFT_HOST: ws://account-service/ws
-      TEMPERATURE_CONVERSION_SERVICE_GRAFT_HOST: ws://temperature-conversion-service/ws
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
       WEBSITE_SITE_NAME: GraftCodeOpenTelemetryDemoCityWeatherServiceNetcore
+      SERVICE_BUS_CONNECTION_STRING: ${SERVICE_BUS_CONNECTION_STRING:-}
+      SERVICE_BUS_QUEUE: ${SERVICE_BUS_QUEUE:-}
+      SERVICE_BUS_REPLY_QUEUE: ${SERVICE_BUS_REPLY_QUEUE:-}
+      SERVICE_BUS_RPC_TIMEOUT_MS: ${SERVICE_BUS_RPC_TIMEOUT_MS:-30000}
     depends_on:
       - account-service
       - temperature-conversion-service

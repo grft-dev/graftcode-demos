@@ -17,7 +17,7 @@ Telemetry never includes credentials, JWTs, usernames, city names, weather paylo
 Frontend (Vite :5173)
   → UserService (graft h2) → AccountService (graft ws) → Azure SQL
   → CityWeatherService (graft h2) → AccountService (city authorization)
-                                 → TemperatureConversionService (C → F)
+                                 → TemperatureConversionService x3 (Azure Service Bus plugin)
                                  → External WeatherService (wss://dotnetweatherapi.onrender.com/ws)
 ```
 
@@ -39,17 +39,31 @@ Use the existing development Application Insights connection string. Do not comm
    - `APPLICATIONINSIGHTS_CONNECTION_STRING`
    - `AZURE_SQL_SA_PASSWORD` (default `CityWeatherDemo123!` is fine for local Docker)
 2. Copy `frontend/.env.example` to `frontend/.env.local` and set `VITE_APPLICATIONINSIGHTS_CONNECTION_STRING` to the same development resource.
+3. Set Azure Service Bus values in `.env` (see [Service Bus plugin](#azure-service-bus-plugin) below).
 
 The browser connection string is visible to browser users by design. It identifies the ingestion resource and must not be treated as an application secret.
 
-If either variable is omitted, the corresponding logger falls back to console output and the application continues to run.
+If either telemetry variable is omitted, the corresponding logger falls back to console output and the application continues to run.
+
+## Azure Service Bus plugin
+
+`TemperatureConversionService` is hosted through the [Service Bus plugin](https://github.com/grft-dev/graftcode-plugins/tree/main/servicebus) instead of direct WebSocket graft. `CityWeatherService` calls it through the same plugin on the client side.
+
+Configure `.env` with:
+
+- `SERVICE_BUS_CONNECTION_STRING`
+- `SERVICE_BUS_QUEUE` (request queue)
+- `SERVICE_BUS_REPLY_QUEUE` (session-enabled reply queue)
+- `SERVICE_BUS_RPC_TIMEOUT_MS` (optional, default `30000`)
+
+Create the queues in your namespace before starting the demo. The reply queue must have sessions enabled (`--enable-session true`). See the plugin README for details.
 
 ## Run locally
 
-Build and start all backends:
+Build and start backends. Run **3 instances** of the temperature converter for competing-consumer load balancing:
 
 ```powershell
-docker compose up --build
+docker compose up --build --scale temperature-conversion-service=3
 ```
 
 Start the frontend in another terminal:
@@ -68,7 +82,7 @@ Expected Application Insights roles:
 - `GraftCodeOpenTelemetryDemoUserServiceNetcore`
 - `GraftCodeOpenTelemetryDemoCityWeatherServiceNetcore`
 - `GraftCodeOpenTelemetryDemoAccountServiceNetcore`
-- `GraftCodeOpenTelemetryDemoTemperatureConversionServiceNetcore`
+- `GraftCodeOpenTelemetryDemoTemperatureConversionServiceNetcore` (3 scaled instances via Service Bus)
 
 Expected nested operations in end-to-end traces:
 

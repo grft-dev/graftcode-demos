@@ -18,8 +18,13 @@ public static class WeatherFacade
         Logger = GraftCodeNetcoreLogger.GetLogger(typeof(WeatherFacade));
         GraftAccount.GraftConfig.Host = GetAccountServiceHost();
         GraftAccount.GraftConfig.Stateless = true;
-        GraftTemperature.GraftConfig.Host = GetTemperatureConversionServiceHost();
-        GraftTemperature.GraftConfig.Stateless = true;
+
+        if (!ServiceBusGraftBootstrap.TryConfigureTemperatureGraft(GraftTemperature.GraftConfig.SetConfig))
+        {
+            GraftTemperature.GraftConfig.Host = GetTemperatureConversionServiceHost();
+            GraftTemperature.GraftConfig.Stateless = true;
+        }
+
         GraftWeather.GraftConfig.Host = "wss://dotnetweatherapi.onrender.com/ws";
         GraftWeather.GraftConfig.Stateless = true;
         Logger.TrackTrace(nameof(WeatherFacade), "City weather service initialized.");
