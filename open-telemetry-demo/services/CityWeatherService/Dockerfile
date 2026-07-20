@@ -1,10 +1,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /src
 COPY --from=graftcode_logger . /src/graftcode-logger/
-COPY services/CityWeatherService/ /src/service/
-WORKDIR /src/service
+COPY services/ /src/services/
+WORKDIR /src/services/CityWeatherService
 COPY services/CityWeatherService/NuGet.Docker.config ./NuGet.config
-RUN dotnet publish CityWeatherService.csproj -c Release -o /app -v q \
+RUN dotnet publish CityWeatherService.csproj -c Release -f net9.0 -o /app -v q \
     -p:GraftCodeLoggerProject=/src/graftcode-logger/GraftCodeNetcoreLogger.csproj
 WORKDIR /app
 RUN apt-get update && apt-get install -y curl \

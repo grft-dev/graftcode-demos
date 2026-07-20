@@ -1,5 +1,6 @@
 using Graftcode.Context;
 using GraftCodeLogger;
+using Shared.Internal;
 using UserService.Internal;
 using UserService.Models;
 using GraftAccount = graft.nuget.AccountService;
@@ -10,18 +11,19 @@ public static class UserAccountService
 {
     private const string ServiceName = "GraftCodeOpenTelemetryDemoUserServiceNetcore";
     private static readonly GraftCodeNetcoreLogger Logger;
+    private static readonly object GraftSync = new();
+    private static bool _graftConfigured;
 
     static UserAccountService()
     {
-        GraftCodeNetcoreLogger.Init(ServiceName);
+        GraftClientBootstrap.EnsureLoggerAndTelemetry(ServiceName);
         Logger = GraftCodeNetcoreLogger.GetLogger(typeof(UserAccountService));
-        GraftAccount.GraftConfig.Host = GetAccountServiceHost();
-        GraftAccount.GraftConfig.Stateless = true;
         Logger.TrackTrace(nameof(UserAccountService), "User service initialized.");
     }
 
     public static LoginResult Login(string username, string password)
     {
+        EnsureAccountGraftConfigured();
         var (traceId, parentSpanId) = TelemetryContext.GetIncomingTrace();
         using var operation = GraftCodeNetcoreLogger.StartOperation(traceId, parentSpanId, nameof(Login));
 
@@ -66,6 +68,7 @@ public static class UserAccountService
 
     public static string[] GetCities()
     {
+        EnsureAccountGraftConfigured();
         var (traceId, parentSpanId) = TelemetryContext.GetIncomingTrace();
         using var operation = GraftCodeNetcoreLogger.StartOperation(traceId, parentSpanId, nameof(GetCities));
 
@@ -87,6 +90,26 @@ public static class UserAccountService
             operation.MarkFailed();
             Logger.TrackException(nameof(GetCities), exception);
             throw;
+        }
+    }
+
+    private static void EnsureAccountGraftConfigured()
+    {
+        if (_graftConfigured)
+        {
+            return;
+        }
+
+        lock (GraftSync)
+        {
+            if (_graftConfigured)
+            {
+                return;
+            }
+
+            GraftAccount.GraftConfig.Host = GetAccountServiceHost();
+            GraftAccount.GraftConfig.Stateless = true;
+            _graftConfigured = true;
         }
     }
 

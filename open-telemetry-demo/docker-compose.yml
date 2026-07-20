@@ -11,7 +11,8 @@ services:
 
   account-service:
     build:
-      context: ./services/AccountService
+      context: .
+      dockerfile: services/AccountService/Dockerfile
       additional_contexts:
         graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
     ports:
@@ -45,7 +46,8 @@ services:
 
   user-service:
     build:
-      context: ./services/UserService
+      context: .
+      dockerfile: services/UserService/Dockerfile
       additional_contexts:
         graftcode_logger: ../../graftcode-logger/src/netcore/GraftCodeNetcoreLogger
     ports:

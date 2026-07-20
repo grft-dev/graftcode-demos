@@ -5,9 +5,9 @@ Proof of concept for correlated telemetry across a React frontend and Graftcode-
 - The browser uses `@graftcode/browser-logger`, which follows the `@graftcode/logger` API and uses the Application Insights browser SDK's OpenTelemetry-compatible span API.
 - The backends use `GraftCodeNetcoreLogger`, matching existing GraftingAgent services such as `graftcode-code-generator`.
 - Browser fetch/XHR instrumentation sends W3C `traceparent`; the Vite h2c proxy forwards it and each backend continues the trace from `Graftcode.Context.RequestContext`.
-- Outbound graft calls between backends forward `traceparent` via `GraftConfig.InvokeWithHeaders`, so AccountService, TemperatureConversionService, and other downstream roles appear in the same end-to-end transaction.
+- Outbound graft calls between backends are traced with manual `GraftTelemetry.RunGraftCall` wrappers in `UserService` and `CityWeatherService`, which call `InvokeWithHeaders` and emit `Graft → …` logger dependencies. Published `graft.nuget.*` clients are built against the released Hypertube SDK; mixing them with a local `HYPERTUBE` build causes `MissingMethodException` at runtime.
 - `AccountService` stores demo user accounts in Azure SQL. OpenTelemetry SqlClient instrumentation records database dependencies automatically.
-- `UserService` and `CityWeatherService` call `AccountService`, `TemperatureConversionService`, and the external weather API through graft; each outbound graft call is wrapped in a nested `Graft → Service.Method` operation.
+- `UserService` and `CityWeatherService` call `AccountService`, `TemperatureConversionService`, and the external weather API through graft; logger operations and `Graft → …` dependencies cover each hop (Service Bus transport dependencies when the plugin is used).
 
 Telemetry never includes credentials, JWTs, usernames, city names, weather payloads, SQL statements, or response bodies.
 
@@ -29,7 +29,7 @@ Frontend (Vite :5173)
 - Access to the `GraftCodeDevPackages` NuGet/npm feeds
 
 The frontend consumes `@graftcode/browser-logger` from the `GraftCodeDevPackages` npm feed. Copy `frontend/.npmrc.example` to `frontend/.npmrc` and authenticate with Azure DevOps before running `npm install`.
-The .NET projects prefer the sibling `graftcode-logger` project when it exists and fall back to `GraftCodeNetcoreLogger` 3.0.5 from `GraftCodeDevPackages` in standalone layouts. Docker Compose supplies the local logger as an additional build context, so container builds do not require private-feed credentials for that package.
+The .NET projects prefer the sibling `graftcode-logger` project when it exists and fall back to `GraftCodeNetcoreLogger` 3.0.5 from `GraftCodeDevPackages` in standalone layouts. Docker Compose supplies the local logger as an additional build context. Hypertube comes from the published graft NuGet packages only (not the local `HYPERTUBE` repo) so graft clients stay binary-compatible.
 
 ## Configure Application Insights and Azure SQL
 
@@ -66,6 +66,13 @@ Build and start backends. Run **3 instances** of the temperature converter for c
 docker compose up --build --scale temperature-conversion-service=3
 ```
 
+If you previously built images with local `HYPERTUBE` project references, clear stale layers first:
+
+```powershell
+docker compose build --no-cache
+docker compose up --force-recreate --scale temperature-conversion-service=3
+```
+
 Start the frontend in another terminal:
 
 ```powershell
@@ -86,12 +93,12 @@ Expected Application Insights roles:
 
 Expected nested operations in end-to-end traces:
 
-- `Graft → AccountFacade.ValidateCredentials`
-- `Graft → AccountFacade.GetCitiesForUser`
-- `Graft → AccountFacade.IsCityAllowedForUser`
-- `Graft → TemperatureFacade.ConvertCelsiusToFahrenheit`
-- `Graft → WeatherProvider.GetWeatherForecast`
+- `Graft → AccountFacade.ValidateCredentials` (and similar `Graft → …` dependencies from `GraftTelemetry.RunGraftCall`)
+- `ValidateCredentials`, `GetCitiesForUser`, `IsCityAllowedForUser`, `ConvertCelsiusToFahrenheit` (business operations via `GraftCodeNetcoreLogger`)
+- `azure.servicebus` dependencies when TemperatureConversionService uses the Service Bus plugin (when `GraftcodeLoggerHypertubeTelemetry` is available against a matching Hypertube build)
 - SQL dependencies on `AccountService` (OpenTelemetry SqlClient instrumentation)
+
+Hypertube auto-telemetry (`hypertube.*` spans) requires graft client packages regenerated against the current `HYPERTUBE` build. Until then, the demo uses logger-based graft call tracing only.
 
 ## Local .NET builds without Docker
 

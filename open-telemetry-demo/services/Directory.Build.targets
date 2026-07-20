@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\Internal\DemoTelemetryBootstrap.cs" Link="Internal\DemoTelemetryBootstrap.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\Internal\GraftClientBootstrap.cs" Link="Internal\GraftClientBootstrap.cs" />
+  </ItemGroup>
+</Project>

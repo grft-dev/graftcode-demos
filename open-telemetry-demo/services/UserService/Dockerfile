@@ -1,10 +1,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /src
 COPY --from=graftcode_logger . /src/graftcode-logger/
-COPY . /src/service/
-WORKDIR /src/service
-COPY NuGet.Docker.config ./NuGet.config
-RUN dotnet publish UserService.csproj -c Release -o /app -v q \
+COPY services/ /src/services/
+WORKDIR /src/services/UserService
+COPY services/UserService/NuGet.Docker.config ./NuGet.config
+RUN dotnet publish UserService.csproj -c Release -f net9.0 -o /app -v q \
     -p:GraftCodeLoggerProject=/src/graftcode-logger/GraftCodeNetcoreLogger.csproj
 WORKDIR /app
 RUN apt-get update && apt-get install -y wget \

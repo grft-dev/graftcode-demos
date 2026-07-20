@@ -1,9 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /src
 COPY --from=graftcode_logger . /src/graftcode-logger/
-COPY services/TemperatureConversionService/ /src/service/
-WORKDIR /src/service
-RUN dotnet publish TemperatureConversionService.csproj -c Release -r linux-x64 -o /app -v q \
+COPY services/ /src/services/
+WORKDIR /src/services/TemperatureConversionService
+RUN dotnet publish TemperatureConversionService.csproj -c Release -f net9.0 -r linux-x64 -o /app -v q \
     -p:GraftCodeLoggerProject=/src/graftcode-logger/GraftCodeNetcoreLogger.csproj
 WORKDIR /app
 COPY docker/temperature-servicebus-entrypoint.sh /app/entrypoint.sh

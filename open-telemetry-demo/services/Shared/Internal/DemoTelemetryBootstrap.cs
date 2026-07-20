@@ -4,9 +4,9 @@ using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace AccountService.Internal;
+namespace Shared.Internal;
 
-internal static class OpenTelemetryBootstrap
+internal static class DemoTelemetryBootstrap
 {
     private static TracerProvider? _tracerProvider;
 
@@ -21,7 +21,7 @@ internal static class OpenTelemetryBootstrap
         {
             serviceName = Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")
                 ?? Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME")
-                ?? "GraftCodeOpenTelemetryDemoAccountServiceNetcore";
+                ?? "GraftCodeOpenTelemetryDemo";
         }
 
         var connectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
@@ -35,11 +35,6 @@ internal static class OpenTelemetryBootstrap
         _tracerProvider = Sdk.CreateTracerProviderBuilder()
             .ConfigureResource(resource => resource.AddService(serviceName))
             .AddSource(GraftcodeHypertubeActivitySource.SourceName)
-            .AddSqlClientInstrumentation(options =>
-            {
-                options.SetDbStatementForText = false;
-                options.RecordException = true;
-            })
             .AddAzureMonitorTraceExporter(options =>
             {
                 options.ConnectionString = connectionString;

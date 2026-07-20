@@ -1,9 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0
 WORKDIR /src
 COPY --from=graftcode_logger . /src/graftcode-logger/
-COPY . /src/service/
-WORKDIR /src/service
-RUN dotnet publish AccountService.csproj -c Release -r linux-x64 -o /app -v q \
+COPY services/ /src/services/
+WORKDIR /src/services/AccountService
+RUN dotnet publish AccountService.csproj -c Release -f net9.0 -r linux-x64 -o /app -v q \
     -p:GraftCodeLoggerProject=/src/graftcode-logger/GraftCodeNetcoreLogger.csproj
 WORKDIR /app
 RUN apt-get update && apt-get install -y wget \

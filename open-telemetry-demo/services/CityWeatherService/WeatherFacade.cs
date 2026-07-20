@@ -1,6 +1,7 @@
 using CityWeatherService.Internal;
 using CityWeatherService.Models;
 using GraftCodeLogger;
+using Shared.Internal;
 using GraftAccount = graft.nuget.AccountService;
 using GraftTemperature = graft.nuget.TemperatureConversionService;
 using GraftWeather = graft.nuget.WeatherService;
@@ -14,24 +15,14 @@ public static class WeatherFacade
 
     static WeatherFacade()
     {
-        GraftCodeNetcoreLogger.Init(ServiceName);
+        GraftClientBootstrap.EnsureLoggerAndTelemetry(ServiceName);
         Logger = GraftCodeNetcoreLogger.GetLogger(typeof(WeatherFacade));
-        GraftAccount.GraftConfig.Host = GetAccountServiceHost();
-        GraftAccount.GraftConfig.Stateless = true;
-
-        if (!ServiceBusGraftBootstrap.TryConfigureTemperatureGraft(GraftTemperature.GraftConfig.SetConfig))
-        {
-            GraftTemperature.GraftConfig.Host = GetTemperatureConversionServiceHost();
-            GraftTemperature.GraftConfig.Stateless = true;
-        }
-
-        GraftWeather.GraftConfig.Host = "wss://dotnetweatherapi.onrender.com/ws";
-        GraftWeather.GraftConfig.Stateless = true;
         Logger.TrackTrace(nameof(WeatherFacade), "City weather service initialized.");
     }
 
     public static CityWeather GetWeather(string cityName)
     {
+        EnsureGraftClientsConfigured();
         var (traceId, parentSpanId) = TelemetryContext.GetIncomingTrace();
         using var operation = GraftCodeNetcoreLogger.StartOperation(traceId, parentSpanId, nameof(GetWeather));
 
@@ -108,5 +99,37 @@ public static class WeatherFacade
     {
         return Environment.GetEnvironmentVariable("TEMPERATURE_CONVERSION_SERVICE_GRAFT_HOST")
             ?? "ws://temperature-conversion-service/ws";
+    }
+
+    private static readonly object GraftSync = new();
+    private static bool _graftConfigured;
+
+    private static void EnsureGraftClientsConfigured()
+    {
+        if (_graftConfigured)
+        {
+            return;
+        }
+
+        lock (GraftSync)
+        {
+            if (_graftConfigured)
+            {
+                return;
+            }
+
+            GraftAccount.GraftConfig.Host = GetAccountServiceHost();
+            GraftAccount.GraftConfig.Stateless = true;
+
+            if (!ServiceBusGraftBootstrap.TryConfigureTemperatureGraft(GraftTemperature.GraftConfig.SetConfig))
+            {
+                GraftTemperature.GraftConfig.Host = GetTemperatureConversionServiceHost();
+                GraftTemperature.GraftConfig.Stateless = true;
+            }
+
+            GraftWeather.GraftConfig.Host = "wss://dotnetweatherapi.onrender.com/ws";
+            GraftWeather.GraftConfig.Stateless = true;
+            _graftConfigured = true;
+        }
     }
 }

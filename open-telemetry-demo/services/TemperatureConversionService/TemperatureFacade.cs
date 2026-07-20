@@ -1,4 +1,5 @@
 using GraftCodeLogger;
+using Shared.Internal;
 using TemperatureConversionService.Internal;
 
 namespace TemperatureConversionService;
@@ -10,7 +11,7 @@ public static class TemperatureFacade
 
     static TemperatureFacade()
     {
-        GraftCodeNetcoreLogger.Init(ServiceName);
+        GraftClientBootstrap.EnsureLoggerAndTelemetry(ServiceName);
         Logger = GraftCodeNetcoreLogger.GetLogger(typeof(TemperatureFacade));
         Logger.TrackTrace(nameof(TemperatureFacade), "Temperature conversion service initialized.");
     }

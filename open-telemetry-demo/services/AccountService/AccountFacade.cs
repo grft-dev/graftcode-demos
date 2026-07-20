@@ -1,5 +1,6 @@
 using AccountService.Internal;
 using GraftCodeLogger;
+using Shared.Internal;
 
 namespace AccountService;
 
@@ -11,8 +12,8 @@ public static class AccountFacade
 
     static AccountFacade()
     {
-        OpenTelemetryBootstrap.Initialize();
-        GraftCodeNetcoreLogger.Init(ServiceName);
+        OpenTelemetryBootstrap.Initialize(ServiceName);
+        GraftClientBootstrap.EnsureLoggerAndTelemetry(ServiceName);
         Logger = GraftCodeNetcoreLogger.GetLogger(typeof(AccountFacade));
         Logger.TrackTrace(nameof(AccountFacade), "Account service initialized.");
     }
