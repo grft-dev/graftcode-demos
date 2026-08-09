@@ -1,0 +1,7 @@
+{
+  "name": "trip-budget-ai",
+  "version": "1.0.0",
+  "description": "Plain JS TripBudget module exposed as MCP tools via Graftcode Gateway",
+  "main": "index.js",
+  "license": "MIT"
+}

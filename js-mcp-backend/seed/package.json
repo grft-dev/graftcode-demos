@@ -1,0 +1,7 @@
+{
+  "name": "trip-budget",
+  "version": "1.0.0",
+  "description": "Trip cost estimator",
+  "main": "index.js",
+  "license": "MIT"
+}
