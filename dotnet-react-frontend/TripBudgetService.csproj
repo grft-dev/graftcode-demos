@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- AssemblyName drives the graft package name & namespace:
+         NuGet  -> graft.nuget.tripbudgetservice
+         npm    -> @graft/nuget-tripbudgetservice -->
+    <AssemblyName>TripBudgetService</AssemblyName>
+  </PropertyGroup>
+
+  <!-- seed/ holds a neutral-comment copy of TripBudget.cs for the with-vs-without
+       rules experiment. A class library globs **/*.cs recursively, so without this
+       exclusion it compiles both copies → CS0101 "already contains a definition". -->
+  <ItemGroup>
+    <Compile Remove="seed/**" />
+    <None Remove="seed/**" />
+  </ItemGroup>
+
+</Project>

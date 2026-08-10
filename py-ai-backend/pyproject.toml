@@ -1,0 +1,5 @@
+[project]
+name = "energy-service"
+version = "1.0.0"
+requires-python = ">=3.8"
+description = "Test module for local directory analysis"

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "trip-budget": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:81/mcp"
+      ]
+    }
+  }
+}
