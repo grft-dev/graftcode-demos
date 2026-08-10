@@ -5,7 +5,7 @@
       "args": [
         "-y",
         "mcp-remote",
-        "http://localhost:80/mcp"
+        "http://localhost:81/mcp"
       ]
     }
   }

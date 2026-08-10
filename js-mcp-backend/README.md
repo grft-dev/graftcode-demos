@@ -30,11 +30,13 @@ curl -sS --max-time 5 http://localhost:81/npm        # readiness + Graft install
 # /libraries shows the full machine-readable contract; the MCP endpoint is /mcp
 ```
 
-> Port note: gg v1.3.0 may serve Vision + MCP on the WS port (80) instead of 81 — read the `gg` logs and
-> point your AI tool at whichever port responds. Vision UI: `http://localhost:81/GV` ("Try it out" calls methods live).
+> Port note: on gg v1.3.8 the MCP endpoint is on **81** (`:80/mcp` returns 404) — that's what the commands
+> below use. Some builds (e.g. gg v1.3.0) serve Vision + MCP on the WS port (80) instead, so if `:81/mcp`
+> doesn't answer, read the `gg` logs and use whichever port responds. Vision UI: `http://localhost:81/GV`
+> ("Try it out" calls methods live).
 
 ## Connect Claude to the MCP endpoint
-- **Claude Code:** one command — `claude mcp add --transport http trip-budget http://localhost:80/mcp`
+- **Claude Code:** one command — `claude mcp add --transport http trip-budget http://localhost:81/mcp`
   (use whichever port responded). New MCP servers load at session start, so launch a fresh `claude` in
   this folder; `getNightlyRate` / `estimateTotal` then appear as native tools you can just ask for.
 - **Claude Desktop:** merge `claude_desktop_config.json` into your config (Claude > Settings > Developer > Edit Config), then restart. Claude Desktop is stdio-only, so it bridges to the HTTP endpoint via `mcp-remote`.
