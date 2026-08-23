@@ -36,6 +36,7 @@ how these differ from the Community demos above.
 |------|-------|
 | [perf-lab](perf-lab/) — Performance Lab | Graftcode vs REST vs gRPC benchmark (detailed above) |
 | [open-telemetry-demo](open-telemetry-demo/) | Multi-service app instrumented with OpenTelemetry |
+| [sdn-currency-converter](sdn-currency-converter/) | Standalone Python currency-conversion library |
 
 ## Repo layout
 

@@ -28,8 +28,7 @@ graftcode-demos/
 │   ├── CODEOWNERS          # who owns/reviews each top-level folder
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── rules/                  # shared, cross-cutting — internal-owned
-├── <demo-folder>/          # Internal Demo or Community Demo, one per demo (see below)
-└── <demo-folder>/
+└── <demo-folder>/          # Internal Demo or Community Demo, one per demo (see below)
 ```
 
 ## Folder naming convention
