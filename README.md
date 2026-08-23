@@ -16,8 +16,6 @@ Runs 1 000 back-to-back calls across three paths and plots the results:
 
 Also includes a **Large Payload & Streaming** section that sends one call returning thousands of `PricePoint` records and compares REST (JSON) vs gRPC unary (protobuf) vs gRPC server-streaming — so you can see the payload-size and decode trade-offs on a real network.
 
-**Live demo:** https://perf-lab.graydesert-edb65f66.northeurope.azurecontainerapps.io
-
 ### Community demos
 
 Focused, single-integration demos — see [CONTRIBUTING.md](CONTRIBUTING.md) for how these differ
@@ -32,11 +30,11 @@ from the perf-lab system above.
 ### Internal demos
 
 Full/reference systems built by the Graftcode team — see [CONTRIBUTING.md](CONTRIBUTING.md) for
-how these differ from the Community demos above. (perf-lab, detailed above, is also an Internal
-Demo.)
+how these differ from the Community demos above.
 
 | Demo | Shows |
 |------|-------|
+| [perf-lab](perf-lab/) — Performance Lab | Graftcode vs REST vs gRPC benchmark (detailed above) |
 | [open-telemetry-demo](open-telemetry-demo/) | Multi-service app instrumented with OpenTelemetry |
 
 ## Repo layout
