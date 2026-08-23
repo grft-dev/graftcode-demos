@@ -1,0 +1,27 @@
+# CODEOWNERS — who gets auto-requested for review on each top-level folder.
+# See CONTRIBUTING.md for the full contribution model (Internal Demo vs Community Demo).
+#
+# NOTE: replace @grft-dev/graftcode-team below with the real GitHub team/usernames before
+# relying on this for auto-review-request — team handles must exist and have repo access.
+
+# Default owner for anything not matched below (root docs, config, new folders until claimed)
+* @grft-dev/graftcode-team
+
+# --- Community Demos (external contributions) -------------------------------
+/dotnet-react-frontend/   @nomadicmehul
+/js-mcp-backend/          @nomadicmehul
+/py-ai-backend/           @nomadicmehul
+
+# --- Internal Demos (full / reference systems) -------------------------------
+/perf-lab/                  @grft-dev/graftcode-team
+/electric-company-be/       @grft-dev/graftcode-team
+/electric-company-ws/       @grft-dev/graftcode-team
+/grpc-energy-price-dotnet/  @grft-dev/graftcode-team
+/graftcode-gateway/         @grft-dev/graftcode-team
+/open-telemetry-demo/       @grft-dev/graftcode-team
+/sdn-currency-converter/    @grft-dev/graftcode-team
+/rules/                     @grft-dev/graftcode-team
+
+# --- Governance docs ---------------------------------------------------------
+/CONTRIBUTING.md   @grft-dev/graftcode-team
+/docs/             @grft-dev/graftcode-team

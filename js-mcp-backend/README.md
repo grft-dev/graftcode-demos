@@ -2,6 +2,8 @@
 
 **A plain JS `TripBudget` module is auto-exposed as MCP tools. Claude discovers and calls your real methods — no MCP server code, no tool definitions, no schemas.**
 
+> **Type:** Community Demo · **Owner:** @nomadicmehul
+
 > Graftcode's AI rules make assistants write the module the Graftcode way (public static methods, simple
 > types) so it exposes cleanly as MCP tools. This repo doesn't vendor those rules; add them to your own
 > project from [grft-dev/graftcode-demos/rules](https://github.com/grft-dev/graftcode-demos/tree/main/rules)

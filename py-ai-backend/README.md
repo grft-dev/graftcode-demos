@@ -1,5 +1,7 @@
 # Energy Price Calculator & MCP Server Integration
 
+> **Type:** Community Demo · **Owner:** @nomadicmehul
+
 This repository contains a simple Python-based energy price calculator that has been adapted to run as a Model Context Protocol (MCP) server. This allows AI assistants like Claude to seamlessly interact with the calculator's functions natively as tools.
 
 This example follows the [Expose MCP (Python) quick-start guide](https://academy.graftcode.com/quick-start/expose-mcp/python) on the GraftCode Academy.

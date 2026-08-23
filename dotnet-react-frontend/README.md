@@ -3,6 +3,8 @@
 **React calls your .NET `TripBudget` backend as a typed Graft. No REST client, no DTOs, no OpenAPI.**
 Bonus: cross-language — a .NET backend called from a TypeScript/React frontend, with no wrapper in between.
 
+> **Type:** Community Demo · **Owner:** @nomadicmehul
+
 > Graftcode's AI rules (`CLAUDE.md` + `.claude/rules/`) make Claude build this the Graftcode way
 > automatically — plain class → `gg` → install the Graft from the `/npm` route → call it.
 > This repo doesn't vendor those rules; add them to your own project from
