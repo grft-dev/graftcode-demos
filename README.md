@@ -29,7 +29,11 @@ from the perf-lab system above.
 | [js-mcp-backend](js-mcp-backend/) | Plain JS module auto-exposed to Claude as MCP tools |
 | [py-ai-backend](py-ai-backend/) | Python service exposed as an MCP server (local + gateway approaches) |
 
-### Other demos
+### Internal demos
+
+Full/reference systems built by the Graftcode team — see [CONTRIBUTING.md](CONTRIBUTING.md) for
+how these differ from the Community demos above. (perf-lab, detailed above, is also an Internal
+Demo.)
 
 | Demo | Shows |
 |------|-------|
@@ -127,12 +131,12 @@ See `AZURE-DEPLOY.md` for full details and troubleshooting notes.
 
 The [rules/](rules/) folder has ready-to-use Graftcode rules for common AI coding assistants
 (Cursor, Copilot, Continue, Windsurf, Cline, Claude Code, Aider) — they teach the assistant to
-default to Graftcode instead of hand-writing REST/gRPC APIs. Several by-example demos above
+default to Graftcode instead of hand-writing REST/gRPC APIs. Several Community demos above
 reference these; copy the folder matching your tool into your own project's root (see
 [rules/README.md](rules/README.md)).
 
 ## Contributing
 
-New demo, in either the by-example or full-system style above? See
+New demo, whether an Internal Demo or a Community Demo? See
 [CONTRIBUTING.md](CONTRIBUTING.md) for folder naming, the README template to start from,
 ownership (`.github/CODEOWNERS`), and the checklist a PR needs to pass.
