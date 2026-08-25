@@ -1,9 +1,9 @@
 # Stage 1: Build the .NET library
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY electric-company-be/EnergyPriceService.csproj .
+COPY official/electric-company-be/EnergyPriceService.csproj .
 RUN dotnet restore
-COPY electric-company-be/ .
+COPY official/electric-company-be/ .
 RUN dotnet build -c Release --no-restore -o /out
 
 # Stage 2: Graftcode Gateway runtime (Linux, includes the gg gateway binary + .NET runtime)

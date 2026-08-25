@@ -3,13 +3,13 @@
 **React calls your .NET `TripBudget` backend as a typed Graft. No REST client, no DTOs, no OpenAPI.**
 Bonus: cross-language — a .NET backend called from a TypeScript/React frontend, with no wrapper in between.
 
-> **Type:** Community Demo · **Owner:** @nomadicmehul
+> **Owner:** @nomadicmehul
 
 > Graftcode's AI rules (`CLAUDE.md` + `.claude/rules/`) make Claude build this the Graftcode way
 > automatically — plain class → `gg` → install the Graft from the `/npm` route → call it.
 > This repo doesn't vendor those rules; add them to your own project from
 > [grft-dev/graftcode-demos/rules](https://github.com/grft-dev/graftcode-demos/tree/main/rules)
-> (see the root [README](../README.md#ai-assistant-rules-optional)).
+> (see the root [README](../../README.md#ai-assistant-rules-optional)).
 >
 > 🧪 Want to see the difference for yourself? **[`seed/`](seed/)** has this same backend class with
 > neutral comments, so you can ask your assistant the identical prompt with and without the rules and

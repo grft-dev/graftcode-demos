@@ -1,27 +1,22 @@
 # CODEOWNERS — who gets auto-requested for review on each top-level folder.
-# See CONTRIBUTING.md for the full contribution model (Internal Demo vs Community Demo).
+# See CONTRIBUTING.md for the full contribution model (Official Demo vs Community Demo).
 #
-# NOTE: replace @grft-dev/graftcode-team below with the real GitHub team/usernames before
-# relying on this for auto-review-request — team handles must exist and have repo access.
+# NOTE: replace @graftcode-team below with a real GitHub team slug if/when one is set up
+# under the grft-dev org — any handle used here must exist and have repo access.
+#
+# CODEOWNERS is last-match-wins: to give one specific demo a different owner than its bucket's
+# default, add a more specific line AFTER the two below, e.g.:
+#   /community/some-other-demo/  @some-other-contributor
 
 # Default owner for anything not matched below (root docs, config, new folders until claimed)
-* @grft-dev/graftcode-team
+* @graftcode-team
 
 # --- Community Demos (external contributions) -------------------------------
-/dotnet-react-frontend/   @nomadicmehul
-/js-mcp-backend/          @nomadicmehul
-/py-ai-backend/           @nomadicmehul
+/community/ @nomadicmehul
 
-# --- Internal Demos (full / reference systems) -------------------------------
-/perf-lab/                  @grft-dev/graftcode-team
-/electric-company-be/       @grft-dev/graftcode-team
-/electric-company-ws/       @grft-dev/graftcode-team
-/grpc-energy-price-dotnet/  @grft-dev/graftcode-team
-/graftcode-gateway/         @grft-dev/graftcode-team
-/open-telemetry-demo/       @grft-dev/graftcode-team
-/sdn-currency-converter/    @grft-dev/graftcode-team
-/rules/                     @grft-dev/graftcode-team
+# --- Official Demos (full / reference systems) -------------------------------
+/official/  @graftcode-team
 
 # --- Governance docs ---------------------------------------------------------
-/CONTRIBUTING.md   @grft-dev/graftcode-team
-/docs/             @grft-dev/graftcode-team
+/CONTRIBUTING.md   @graftcode-team
+/docs/             @graftcode-team

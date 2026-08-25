@@ -83,12 +83,12 @@ $acrUser   = Get-AzValue acr credential show -g $ResourceGroup -n $AcrName --que
 $acrPass   = Get-AzValue acr credential show -g $ResourceGroup -n $AcrName --query 'passwords[0].value' -o tsv
 
 Write-Host "==> Building backend images in ACR (no local Docker needed)"
-Invoke-Az acr build -r $AcrName -t "rest-energy:latest" "$root/electric-company-ws"
-Invoke-Az acr build -r $AcrName -t "grpc-energy:latest" "$root/grpc-energy-price-dotnet"
+Invoke-Az acr build -r $AcrName -t "rest-energy:latest" "$root/official/electric-company-ws"
+Invoke-Az acr build -r $AcrName -t "grpc-energy:latest" "$root/official/grpc-energy-price-dotnet"
 
 Write-Host "==> Building Graftcode gateway image in ACR"
-# Build context is the repo root so the Dockerfile can COPY electric-company-be/
-Invoke-Az acr build -r $AcrName -t "graft-gateway:latest" -f "$root/graftcode-gateway/Dockerfile" "$root"
+# Build context is the repo root so the Dockerfile can COPY official/electric-company-be/
+Invoke-Az acr build -r $AcrName -t "graft-gateway:latest" -f "$root/official/graftcode-gateway/Dockerfile" "$root"
 
 Write-Host "==> Container Apps environment $EnvName"
 # --logs-destination none skips the auto-generated Log Analytics workspace
@@ -129,7 +129,7 @@ Invoke-Az acr build -r $AcrName -t "perf-lab:latest" `
   --build-arg "VITE_REST_URL=https://$restFqdn" `
   --build-arg "VITE_GRPC_URL=https://$grpcFqdn" `
   --build-arg "VITE_GRAFT_WS_URL=wss://$gwFqdn/ws" `
-  "$root/perf-lab"
+  "$root/official/perf-lab"
 
 Write-Host "==> Deploying frontend"
 Invoke-Az containerapp create -g $ResourceGroup -n $webApp --environment $EnvName `

@@ -67,15 +67,15 @@ logs/
 # Binary / build artefacts (electric-company-be)
 *.zip
 uploads/
-electric-company-be/Binaries/
-electric-company-be/GMA/
-electric-company-be/GVFE/
+official/electric-company-be/Binaries/
+official/electric-company-be/GMA/
+official/electric-company-be/GVFE/
 _Hypertube*.txt
 
 # Binary / build artefacts (graft tooling)
 Binaries/
 GMA/
 GVFE/
-perf-lab/Binaries/
-perf-lab/GMA/
-perf-lab/GVFE/
+official/perf-lab/Binaries/
+official/perf-lab/GMA/
+official/perf-lab/GVFE/

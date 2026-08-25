@@ -7,21 +7,23 @@ locally-trusted [mkcert](https://github.com/FiloSottile/mkcert) certificate.
 ## One-time setup
 
 ```bash
-# Trust a local CA and mint a cert for localhost (shared by all backends)
+# Trust a local CA and mint a cert for localhost (shared by all backends).
+# The cert lives at official/certs/ — a sibling of the backend folders, since each
+# backend looks for it at "<its own folder>/../certs" by default.
 mkcert -install
-mkdir -p certs && cd certs
+mkdir -p official/certs && cd official/certs
 mkcert -cert-file localhost.pem -key-file localhost-key.pem localhost 127.0.0.1 ::1
 ```
 
-Both backends auto-discover `../certs/localhost.pem` + `localhost-key.pem`
-(override with the `TLS_CERT` / `TLS_KEY` env vars).
+Both backends auto-discover `../certs/localhost.pem` + `localhost-key.pem` relative to
+their own folder — i.e. `official/certs/` (override with the `TLS_CERT` / `TLS_KEY` env vars).
 
 ## Run the three backends
 
 | Service | Command | Endpoint | HTTP/2 |
 |---------|---------|----------|--------|
-| **REST** (C#/Kestrel) | `cd electric-company-ws && dotnet run --project be.csproj` | `https://localhost:8090/api/EnergyPrice/price` | h2 over TLS |
-| **gRPC-Web** (C#/Kestrel) | `cd grpc-energy-price-dotnet && dotnet run` | `https://localhost:5005/energyprice.PriceService/GetPrice` | h2 over TLS |
+| **REST** (C#/Kestrel) | `cd official/electric-company-ws && dotnet run --project be.csproj` | `https://localhost:8090/api/EnergyPrice/price` | h2 over TLS |
+| **gRPC-Web** (C#/Kestrel) | `cd official/grpc-energy-price-dotnet && dotnet run` | `https://localhost:5005/energyprice.PriceService/GetPrice` | h2 over TLS |
 | **Graftcode** (gg.exe) | see below | `http://localhost:5001` | **h2c (cleartext)** |
 
 > REST and gRPC both run on .NET/Kestrel so the comparison isolates the protocol,
@@ -30,7 +32,7 @@ Both backends auto-discover `../certs/localhost.pem` + `localhost-key.pem`
 ### Graftcode Gateway
 
 ```bash
-cd electric-company-be
+cd official/electric-company-be
 dotnet build EnergyPriceService.csproj          # produces the module DLL
 gg.exe "bin/Debug/net8.0/EnergyPriceService.dll" \
     --runtime netcore \
