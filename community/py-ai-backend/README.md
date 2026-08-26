@@ -2,7 +2,7 @@
 
 This repository contains a simple Python-based energy price calculator that has been adapted to run as a Model Context Protocol (MCP) server. This allows AI assistants like Claude to seamlessly interact with the calculator's functions natively as tools.
 
-> **Type:** Community Demo · **Owner:** @nomadicmehul
+> **Owner:** @nomadicmehul
 
 This example follows the [Expose MCP (Python) quick-start guide](https://academy.graftcode.com/quick-start/expose-mcp/python) on the GraftCode Academy.
 
@@ -34,7 +34,7 @@ Create and activate a Python virtual environment, then install dependencies:
 
 **macOS / Linux:**
 ```bash
-cd py-ai-backend
+cd community/py-ai-backend
 
 # Create the virtual environment
 python3 -m venv venv
@@ -48,7 +48,7 @@ pip install mcp
 
 **Windows (PowerShell):**
 ```powershell
-cd py-ai-backend
+cd community/py-ai-backend
 python -m venv venv
 venv\Scripts\Activate.ps1
 pip install mcp

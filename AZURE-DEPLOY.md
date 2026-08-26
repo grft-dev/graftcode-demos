@@ -8,9 +8,9 @@ loopback. Nothing is throttled or faked.
 
 | Service | Container serves | Ingress transport | Browser gets |
 |---------|------------------|-------------------|--------------|
-| REST (`electric-company-ws`) | cleartext HTTP/1.1 on `$PORT` | `auto` | HTTP/2 (negotiated at ingress) |
-| gRPC (`grpc-energy-price-dotnet`) | cleartext **h2c** on `$PORT` | **`http2`** | HTTP/2 (gRPC-Web preserved) |
-| Frontend (`perf-lab`) | nginx static on `:81` | `auto` | HTTP/2 |
+| REST (`official/electric-company-ws`) | cleartext HTTP/1.1 on `$PORT` | `auto` | HTTP/2 (negotiated at ingress) |
+| gRPC (`official/grpc-energy-price-dotnet`) | cleartext **h2c** on `$PORT` | **`http2`** | HTTP/2 (gRPC-Web preserved) |
+| Frontend (`official/perf-lab`) | nginx static on `:81` | `auto` | HTTP/2 |
 
 The Container Apps ingress terminates TLS with a real, browser-trusted certificate,
 so there are no cert warnings and `mkcert` is not involved in the cloud.

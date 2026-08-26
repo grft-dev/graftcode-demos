@@ -23,36 +23,40 @@ from the perf-lab system above.
 
 | Demo | Shows |
 |------|-------|
-| [dotnet-react-frontend](dotnet-react-frontend/) | React frontend calling a .NET backend as a typed Graft |
-| [js-mcp-backend](js-mcp-backend/) | Plain JS module auto-exposed to Claude as MCP tools |
-| [py-ai-backend](py-ai-backend/) | Python service exposed as an MCP server (local + gateway approaches) |
+| [dotnet-react-frontend](community/dotnet-react-frontend/) | React frontend calling a .NET backend as a typed Graft |
+| [js-mcp-backend](community/js-mcp-backend/) | Plain JS module auto-exposed to Claude as MCP tools |
+| [py-ai-backend](community/py-ai-backend/) | Python service exposed as an MCP server (local + gateway approaches) |
 
-### Internal demos
+### Official demos
 
 Full/reference systems built by the Graftcode team — see [CONTRIBUTING.md](CONTRIBUTING.md) for
 how these differ from the Community demos above.
 
 | Demo | Shows |
 |------|-------|
-| [perf-lab](perf-lab/) — Performance Lab | Graftcode vs REST vs gRPC benchmark (detailed above) |
-| [open-telemetry-demo](open-telemetry-demo/) | Multi-service app instrumented with OpenTelemetry |
-| [sdn-currency-converter](sdn-currency-converter/) | Standalone Python currency-conversion library |
+| [perf-lab](official/perf-lab/) — Performance Lab | Graftcode vs REST vs gRPC benchmark (detailed above) |
+| [open-telemetry-demo](official/open-telemetry-demo/) | Multi-service app instrumented with OpenTelemetry |
+| [sdn-currency-converter](official/sdn-currency-converter/) | Standalone Python currency-conversion library |
 
 ## Repo layout
 
 ```
-perf-lab/                  React/Vite frontend (performance benchmark UI)
-electric-company-ws/       .NET 8 REST backend  (HTTP/2, /api/EnergyPrice/*)
-grpc-energy-price-dotnet/  .NET 8 gRPC backend  (HTTP/2, ASP.NET Core gRPC-Web)
-electric-company-be/       Original C# energy-price service (Graftcode host)
-graftcode-gateway/         Graftcode Gateway container used by the demos above
-sdn-currency-converter/    Python currency-converter demo
-dotnet-react-frontend/     Community demo: React → .NET Graft
-js-mcp-backend/            Community demo: JS module → MCP tools
-py-ai-backend/             Community demo: Python service → MCP server
-open-telemetry-demo/       Multi-service OpenTelemetry demo
-rules/                     Shared AI-assistant rules (see below)
-deploy-azure.ps1           One-shot Azure Container Apps deploy script
+community/                     External-contributor demos (see CONTRIBUTING.md)
+  dotnet-react-frontend/      React → .NET Graft
+  js-mcp-backend/             JS module → MCP tools
+  py-ai-backend/              Python service → MCP server
+
+official/                     Graftcode-team demos (see CONTRIBUTING.md)
+  perf-lab/                   React/Vite frontend (performance benchmark UI)
+  electric-company-ws/        .NET 8 REST backend  (HTTP/2, /api/EnergyPrice/*)
+  grpc-energy-price-dotnet/   .NET 8 gRPC backend  (HTTP/2, ASP.NET Core gRPC-Web)
+  electric-company-be/        Original C# energy-price service (Graftcode host)
+  graftcode-gateway/          Graftcode Gateway container used by the demos above
+  sdn-currency-converter/     Python currency-converter demo
+  open-telemetry-demo/        Multi-service OpenTelemetry demo
+
+rules/                        Shared AI-assistant rules (see below) — used by both
+deploy-azure.ps1              One-shot Azure Container Apps deploy script
 ```
 
 ## Run locally
@@ -67,14 +71,14 @@ deploy-azure.ps1           One-shot Azure Container Apps deploy script
 
 ```powershell
 mkcert -install
-New-Item -ItemType Directory -Force certs
-mkcert -cert-file certs/localhost.pem -key-file certs/localhost-key.pem localhost 127.0.0.1
+New-Item -ItemType Directory -Force official/certs
+mkcert -cert-file official/certs/localhost.pem -key-file official/certs/localhost-key.pem localhost 127.0.0.1
 ```
 
 ### 2 — REST backend
 
 ```powershell
-cd electric-company-ws
+cd official/electric-company-ws
 dotnet run
 # Listening on https://localhost:8090
 ```
@@ -82,7 +86,7 @@ dotnet run
 ### 3 — gRPC backend
 
 ```powershell
-cd grpc-energy-price-dotnet
+cd official/grpc-energy-price-dotnet
 dotnet run
 # Listening on https://localhost:5005
 ```
@@ -90,13 +94,13 @@ dotnet run
 ### 4 — Frontend
 
 ```powershell
-cd perf-lab
+cd official/perf-lab
 npm install
 npm run dev
 # Open http://localhost:5173
 ```
 
-The `.env` in `perf-lab/` already points to `https://localhost:8090` (REST) and `https://localhost:5005` (gRPC). Copy `.env.example` to `.env` if you need to change the URLs.
+The `.env` in `official/perf-lab/` already points to `https://localhost:8090` (REST) and `https://localhost:5005` (gRPC). Copy `.env.example` to `.env` if you need to change the URLs.
 
 ## Deploy to Azure
 
@@ -136,6 +140,6 @@ reference these; copy the folder matching your tool into your own project's root
 
 ## Contributing
 
-New demo, whether an Internal Demo or a Community Demo? See
+New demo, whether an Official Demo or a Community Demo? See
 [CONTRIBUTING.md](CONTRIBUTING.md) for folder naming, the README template to start from,
 ownership (`.github/CODEOWNERS`), and the checklist a PR needs to pass.
