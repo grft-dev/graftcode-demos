@@ -14,11 +14,14 @@ Fires 1 000 sequential calls on each of the three paths and reports total elapse
 
 ### Large Payload & Streaming
 
-One call returning N price points (configurable: 1 k – 50 k). Compares:
+One call returning N price points (configurable: 1 k – 50 k). **Run comparison** measures:
 
 - REST JSON (one response, decoded with `JSON.parse`)
 - gRPC unary (one protobuf response, decoded by `@bufbuild/protobuf`)
-- gRPC server-streaming (points stream in over one HTTP/2 stream)
+- gRPC server-streaming (`streamPrices` — points arrive one at a time over one HTTP/2 stream)
+- Graftcode (direct method call over the gateway WebSocket)
+
+The cloud cost calculator uses REST, gRPC **unary**, and Graftcode. Streaming is a protocol variant of the same gRPC channel, not a fourth integration technology.
 
 Both backends are .NET 8 / Kestrel so the runtime is identical — only wire format and protocol differ.
 
@@ -57,7 +60,13 @@ VITE_GRPC_URL=https://localhost:5005
 VITE_GRAFT_WS_URL=ws://localhost:5000/ws
 ```
 
-Copy `.env.example` to `.env` and start the two .NET backends before running the frontend. See the root `README.md` for backend setup instructions.
+Copy `.env.example` to `.env` and start the two .NET backends plus the Graftcode gateway before running the frontend. See the root `README.md` for backend setup.
+
+```bash
+npm test
+```
+
+Playwright hits the live REST (`:8090`), gRPC (`:5005`), and Graftcode WS (`:5000`) backends — they must already be running.
 
 ## Build
 

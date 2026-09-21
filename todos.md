@@ -30,7 +30,7 @@ Scenariusze UI / benchmarku z README i `official/perf-lab`.
 - [x] `GET /status` → 200 `healthy`
 - [x] `GET /api/EnergyPrice/price` → 200 (liczba)
 - [x] `GET /api/EnergyPrice/history?count=2` → 200 (JSON `PricePoint`)
-- [ ] W przeglądarce (zaufany cert mkcert): to samo bez `--ssl-no-revoke`, po HTTP/2 (ALPN)
+- [x] W przeglądarce (zaufany cert mkcert): to samo bez `--ssl-no-revoke`, po HTTP/2 (ALPN)
 
 ### 1.2 gRPC-Web backend (`official/grpc-energy-price-dotnet`)
 
@@ -38,7 +38,7 @@ Scenariusze UI / benchmarku z README i `official/perf-lab`.
 - [x] `GET /status` → 200
 - [x] Unary `GetPriceHistory` z UI (ConnectRPC `callGrpcGetPriceHistory` → `:5005`) — Run comparison pokazuje czas gRPC
 - [x] Unary `GetPrice` z UI — używane jako baseline narzutu gRPC (nie osobny przycisk)
-- [ ] Server-streaming `streamPrices` — klient jest w `src/grpcClient.js`, **UI go nie woła**; README obiecuje porównanie streaming. Albo podpiąć w `App.jsx`, albo zdjąć obietnicę z README i przetestować to, co UI naprawdę ma.
+- [x] Server-streaming `streamPrices` — UI woła `streamGrpcPrices` z `src/grpcClient.js` w Run comparison (wiersz **gRPC stream**); README obiecuje to porównanie i UI je ma.
 
 ### 1.3 Frontend Vite (`official/perf-lab`)
 
@@ -48,12 +48,12 @@ Scenariusze UI / benchmarku z README i `official/perf-lab`.
 - [ ] Po `projectKey` z portal.graftcode.com: ustabilizować GUID, dopiero wtedy wpis w `package.json` + lockfile (nie commitując `.npmrc` z tokenem)
 - [x] `npm install` + `npm run dev` → `http://localhost:5173`
 - [x] **Fetch One Price** — `EnergyPriceService.getPrice()` na żywym gg (ten sam call jest baseline’em narzutu)
-- [x] **Run comparison** (5k punktów, 2026-09-21): REST JSON + KB, gRPC unary ConnectRPC `:5005`, Graftcode WS `:5000` — czasy > 0 ms. Przykład: REST ~20 ms, gRPC ~18 ms, Graftcode ~7 ms (po odjęciu własnego narzutu)
-- [ ] Run comparison dla **1k / 20k / 50k** (sprawdzone tylko 5k)
+- [x] **Run comparison** (5k punktów, 2026-09-21): REST JSON + KB, gRPC unary ConnectRPC `:5005`, **gRPC stream**, Graftcode WS `:5000` — czasy > 0 ms. Przykład: REST ~20 ms, gRPC unary ~18 ms, Graftcode ~7 ms (po odjęciu własnego narzutu)
+- [x] Run comparison dla **1k / 20k / 50k** (Playwright + UI; stream wolniejszy od unary, wszystkie czasy > 0 ms)
 - [x] Checkbox **Exclude Network Latency** — per ścieżka: mały call (`/price`, gRPC `GetPrice`, graft `getPrice`) jako baseline, odejmowany od własnego payloadu; czasy z dokładnością 0,1 ms. Stara heurystyka `min(REST,gRPC)*0.8` ścinała Graftcode do 0 ms na loopbacku
 - [x] Kalkulator **Cloud Cost Savings** pojawia się po Run comparison (REST → Graftcode na Azure; wariantów AWS/GCP / RPS nie klikano osobno)
 - [x] Fallback hosta: `App.jsx` `ws://localhost:5000/ws` (zgodnie z `.env.example` / HTTP2-SETUP; `:5001` to h2c)
-- [ ] Albo dodać skrypt `test` + testy Playwright (zależność już jest), albo usunąć `playwright` z `package.json`
+- [x] Skrypt `test` + testy Playwright (`official/perf-lab/tests/payload-comparison.spec.js`) — Fetch One Price, latency checkbox, Run comparison 1k/20k/50k, kalkulator gRPC unary → Graftcode/REST. Wymaga żywych backendów.
 
 ### 1.4 Graftcode Gateway lokalnie (`official/electric-company-be` + HTTP2-SETUP)
 
@@ -184,7 +184,7 @@ Nie jest „apką do odpalenia”, ale jest scenariuszem README.
 - [ ] Root README **Run locally**: dodać gateway (HTTP2-SETUP), `.env.example` → `.env`, nuget.org / `nuget.config`, prywatny npm / lockfile, `mkcert` w tym `::1`
 - [ ] Tabela Graftcode: albo „mocked locally” + alias Vite, albo „przez gg WS/HTTP2” — dziś README kłamie względem `vite.config.js`
 - [ ] README: 1000 back-to-back calls — w `App.jsx` tego biegu nie widać (jest Fetch One Price + payload + kalkulator kosztów). Przywrócić UI albo poprawić opis.
-- [ ] Streaming gRPC: podpiąć albo wyciąć z README
+- [x] Streaming gRPC: podpiąć albo wyciąć z README
 - [ ] Tech stack: REST to kontrolery, nie minimal API (`EnergyPriceController`)
 - [ ] Napisać `official/open-telemetry-demo/README.md` (Owner, compose, Vite, JWT, porty 8080/8081/8989/8990/5173)
 - [ ] Community README: wariant „kod już jest w folderze — `docker build` stąd”, nie tylko `dotnet new` / `mkdir`
@@ -197,7 +197,7 @@ Nie jest „apką do odpalenia”, ale jest scenariuszem README.
 ## Kolejność, która nie zderza portów
 
 1. Lockfile OTel (2.2) — perf-lab UI już wstaje bez GUID-a w lockfile (ad-hoc `--no-save`).
-2. Dokończyć perf-lab: 1k/20k/50k, Playwright vs usunąć zależność, `gg` na PATH, `projectKey`, HTTP/2 proxy `:5001`.
+2. Dokończyć perf-lab: `gg` na PATH, `projectKey` (później), HTTP/2 proxy `:5001`.
 3. OTel: kompilacja weather → compose → graft install → login/pogoda.
 4. Community: po jednym na `:80/:81` — najpierw HTTP tools/call, potem Claude.
 5. Currency converter przez `gg`.

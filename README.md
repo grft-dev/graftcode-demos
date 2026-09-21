@@ -72,8 +72,10 @@ deploy-azure.ps1              One-shot Azure Container Apps deploy script
 ```powershell
 mkcert -install
 New-Item -ItemType Directory -Force official/certs
-mkcert -cert-file official/certs/localhost.pem -key-file official/certs/localhost-key.pem localhost 127.0.0.1
+mkcert -cert-file official/certs/localhost.pem -key-file official/certs/localhost-key.pem localhost 127.0.0.1 ::1
 ```
+
+After `mkcert -install`, Chrome trusts the cert — open `https://localhost:8090/status` with no warning. Confirm HTTP/2 in DevTools (Network → Protocol = `h2`) or Kestrel logs. Windows `curl` still needs `--ssl-no-revoke` (Schannel revocation check) and does not support `--http2`, so do not use curl to prove ALPN.
 
 ### 2 — REST backend
 

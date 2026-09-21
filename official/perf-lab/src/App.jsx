@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
-import { callGrpcGetPrice, callGrpcGetPriceHistory } from './grpcClient'
+import { callGrpcGetPrice, callGrpcGetPriceHistory, streamGrpcPrices } from './grpcClient'
 
 function App() {
   const currencyOptions = [
@@ -53,6 +53,7 @@ function App() {
   const [restHistoryMs, setRestHistoryMs] = useState(null)
   const [restHistoryKb, setRestHistoryKb] = useState(null)
   const [grpcHistoryMs, setGrpcHistoryMs] = useState(null)
+  const [grpcStreamMs, setGrpcStreamMs] = useState(null)
   const [graftHistoryMs, setGraftHistoryMs] = useState(null)
   const [restBaselineMs, setRestBaselineMs] = useState(null)
   const [grpcBaselineMs, setGrpcBaselineMs] = useState(null)
@@ -109,6 +110,7 @@ function App() {
     setRestHistoryMs(null)
     setRestHistoryKb(null)
     setGrpcHistoryMs(null)
+    setGrpcStreamMs(null)
     setGraftHistoryMs(null)
     setRestBaselineMs(null)
     setGrpcBaselineMs(null)
@@ -133,6 +135,11 @@ function App() {
       t = performance.now()
       await callGrpcGetPriceHistory(grpcBase, payloadCount)
       setGrpcHistoryMs(round1(performance.now() - t))
+
+      // gRPC server-streaming: same count of points, one message at a time on one HTTP/2 stream.
+      t = performance.now()
+      await streamGrpcPrices(grpcBase, payloadCount)
+      setGrpcStreamMs(round1(performance.now() - t))
 
       // Graftcode: one static method call returning double[] over the gateway's WebSocket.
       setGraftBaselineMs(await measureBaseline(() => EnergyPriceService.getPrice()))
@@ -247,7 +254,7 @@ function App() {
         <div className="payload-header">
           <div>
             <h2>Large Payload &amp; Streaming</h2>
-            <p>One request returning many price points. All three call the same .NET logic — REST via HTTP/2+JSON, gRPC via HTTP/2+protobuf, Graftcode via direct method call (no API layer).</p>
+            <p>One request returning many price points. Same .NET logic on every path — REST via HTTP/2+JSON, gRPC unary and server-streaming via HTTP/2+protobuf, Graftcode via a direct method call (no API layer).</p>
           </div>
           <div className="latency-controls">
             <div className="latency-row">
@@ -288,13 +295,15 @@ function App() {
         <div className="summary">
           <div>{formatPayloadResult('REST (JSON)', restHistoryMs, restHistoryKb, restBaselineMs)}</div>
           <div>{formatPayloadResult('gRPC unary (protobuf)', grpcHistoryMs, null, grpcBaselineMs)}</div>
+          <div>{formatPayloadResult('gRPC stream (protobuf)', grpcStreamMs, null, grpcBaselineMs)}</div>
           <div>{formatPayloadResult('Graftcode (direct call)', graftHistoryMs, null, graftBaselineMs)}</div>
         </div>
 
-        {(restHistoryMs !== null && grpcHistoryMs !== null && graftHistoryMs !== null) && (() => {
+        {(restHistoryMs !== null && grpcHistoryMs !== null && grpcStreamMs !== null && graftHistoryMs !== null) && (() => {
           const results = [
             { name: 'REST', ms: adjustForLatency(restHistoryMs, restBaselineMs) },
-            { name: 'gRPC', ms: adjustForLatency(grpcHistoryMs, grpcBaselineMs) },
+            { name: 'gRPC unary', ms: adjustForLatency(grpcHistoryMs, grpcBaselineMs) },
+            { name: 'gRPC stream', ms: adjustForLatency(grpcStreamMs, grpcBaselineMs) },
             { name: 'Graftcode', ms: adjustForLatency(graftHistoryMs, graftBaselineMs) },
           ]
           const fastest = results.reduce((a, b) => a.ms < b.ms ? a : b)
