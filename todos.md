@@ -63,7 +63,7 @@ Potrzebne dla ścieżki B i kolumny Graftcode „po sieci”, nie mock.
 - [x] `gg.exe … EnergyPriceService.dll --runtime netcore --http2Server --http2Port 5001 --port 5000 --httpPort 5002` **bez** `--projectKey` (GUID rotuje przy restarcie)
 - [x] Poll `http://localhost:5000/npm` → 200; komenda install stamtąd, nie z logów
 - [x] WS z przeglądarki: `VITE_GRAFT_WS_URL=ws://localhost:5000/ws` — Run comparison woła `getPriceHistory` przez Hypertube
-- [ ] HTTP/2 z przeglądarki: TLS reverse proxy na h2c `:5001` (`/h2`) — gg serwuje h2c, przeglądarka wymaga h2; bez proxy ten kanał nie zadziała
+- [x] HTTP/2 z przeglądarki: plugin Vite `vite-graft-proxy.js` (`/graft/h2` → h2c `:5001/h2`) + HTTPS mkcert na `:5173`. **UI default to same-origin WSS** `/graft-ws` → `:5000/ws` — gg 1.4.6 + Node http2 `POST /h2` daje `NGHTTP2_PROTOCOL_ERROR` (ten sam błąd bez Vite, oficjalny hypertube). `VITE_GRAFT_TRANSPORT=h2` zostawia ścieżkę pluginu.
 - [x] Z UI: payload comparison na żywym grafcie (nie mocku). Restart Vite po `npm install` grafu (HMR trzyma stary `node_modules`)
 
 ### 1.5 Docker gateway (`official/graftcode-gateway`, `official/electric-company-be/Dockerfile`)
@@ -197,7 +197,7 @@ Nie jest „apką do odpalenia”, ale jest scenariuszem README.
 ## Kolejność, która nie zderza portów
 
 1. Lockfile OTel (2.2) — perf-lab UI już wstaje bez GUID-a w lockfile (ad-hoc `--no-save`).
-2. Dokończyć perf-lab: `gg` na PATH, `projectKey` (później), HTTP/2 proxy `:5001`.
+2. Dokończyć perf-lab: `gg` na PATH, `projectKey` (później).
 3. OTel: kompilacja weather → compose → graft install → login/pogoda.
 4. Community: po jednym na `:80/:81` — najpierw HTTP tools/call, potem Claude.
 5. Currency converter przez `gg`.

@@ -65,15 +65,30 @@ function App() {
 
   useEffect(() => {
     try {
-      GraftConfig.host = import.meta.env.VITE_GRAFT_WS_URL ?? 'ws://localhost:5000/ws'
+      const h2Path = import.meta.env.VITE_GRAFT_H2_PATH ?? '/graft/h2'
+      // gg 1.4.6 RST_STREAMs Node http2 POST /h2 (PROTOCOL_ERROR) — same as the
+      // official hypertube Node client. Browser HTTP/2 still goes through the
+      // Vite h2c plugin when VITE_GRAFT_TRANSPORT=h2. Default is same-origin
+      // WSS → gg WebSocket so HTTPS pages are not mixed-content blocked.
+      if (import.meta.env.VITE_GRAFT_TRANSPORT === 'h2') {
+        GraftConfig.host = `${window.location.origin}${h2Path}`
+      } else {
+        const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+        GraftConfig.host = `${wsProto}://${window.location.host}/graft-ws`
+      }
+      GraftConfig.stateless = true
     } catch (err) {
       setGraftError(err?.message || 'Failed to initialize GraftConfig')
     }
   }, [])
 
   const getEnergyPrice = async () => {
-    const calculatedPrice = await EnergyPriceService.getPrice()
-    setPrice(calculatedPrice)
+    try {
+      const calculatedPrice = await EnergyPriceService.getPrice()
+      setPrice(calculatedPrice)
+    } catch (err) {
+      setGraftError(err?.message || 'getPrice failed')
+    }
   }
 
   const round1 = (ms) => Math.round(ms * 10) / 10
@@ -141,7 +156,7 @@ function App() {
       await streamGrpcPrices(grpcBase, payloadCount)
       setGrpcStreamMs(round1(performance.now() - t))
 
-      // Graftcode: one static method call returning double[] over the gateway's WebSocket.
+      // Graftcode: static method over Vite TLS → gateway h2c `/h2`.
       setGraftBaselineMs(await measureBaseline(() => EnergyPriceService.getPrice()))
       t = performance.now()
       const graftPoints = await EnergyPriceService.getPriceHistory(payloadCount)
@@ -254,7 +269,7 @@ function App() {
         <div className="payload-header">
           <div>
             <h2>Large Payload &amp; Streaming</h2>
-            <p>One request returning many price points. Same .NET logic on every path — REST via HTTP/2+JSON, gRPC unary and server-streaming via HTTP/2+protobuf, Graftcode via a direct method call (no API layer).</p>
+            <p>One request returning many price points. Same .NET logic on every path — REST via HTTP/2+JSON, gRPC unary and server-streaming via HTTP/2+protobuf, Graftcode via the gateway (same-origin WSS through Vite; optional h2c /h2).</p>
           </div>
           <div className="latency-controls">
             <div className="latency-row">
@@ -296,7 +311,12 @@ function App() {
           <div>{formatPayloadResult('REST (JSON)', restHistoryMs, restHistoryKb, restBaselineMs)}</div>
           <div>{formatPayloadResult('gRPC unary (protobuf)', grpcHistoryMs, null, grpcBaselineMs)}</div>
           <div>{formatPayloadResult('gRPC stream (protobuf)', grpcStreamMs, null, grpcBaselineMs)}</div>
-          <div>{formatPayloadResult('Graftcode (direct call)', graftHistoryMs, null, graftBaselineMs)}</div>
+          <div>{formatPayloadResult(
+            import.meta.env.VITE_GRAFT_TRANSPORT === 'h2' ? 'Graftcode (HTTP/2)' : 'Graftcode (WebSocket)',
+            graftHistoryMs,
+            null,
+            graftBaselineMs,
+          )}</div>
         </div>
 
         {(restHistoryMs !== null && grpcHistoryMs !== null && grpcStreamMs !== null && graftHistoryMs !== null) && (() => {

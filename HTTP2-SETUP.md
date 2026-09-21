@@ -24,7 +24,7 @@ their own folder — i.e. `official/certs/` (override with the `TLS_CERT` / `TLS
 |---------|---------|----------|--------|
 | **REST** (C#/Kestrel) | `cd official/electric-company-ws && dotnet run --project be.csproj` | `https://localhost:8090/api/EnergyPrice/price` | h2 over TLS |
 | **gRPC-Web** (C#/Kestrel) | `cd official/grpc-energy-price-dotnet && dotnet run` | `https://localhost:5005/energyprice.PriceService/GetPrice` | h2 over TLS |
-| **Graftcode** (gg.exe) | see below | `http://localhost:5001` | **h2c (cleartext)** |
+| **Graftcode** (gg.exe) | see below | `http://localhost:5001/h2` (h2c); browser: `https://localhost:5173/graft/h2` | h2c behind Vite TLS |
 
 > REST and gRPC both run on .NET/Kestrel so the comparison isolates the protocol,
 > not the runtime. Both serve gRPC-Web/REST over the same mkcert TLS cert.
@@ -36,21 +36,33 @@ cd official/electric-company-be
 dotnet build EnergyPriceService.csproj          # produces the module DLL
 gg.exe "bin/Debug/net8.0/EnergyPriceService.dll" \
     --runtime netcore \
-    --http2Server --http2Port 5001 \
-    --port 5000 --httpPort 5002
+    --http2Server=1 --http2Port 5001 \
+    --port 5000 --httpPort 5002 \
+    --corsAllowedOrigins=*
 ```
 
 This starts three servers: WebSocket (5000), HTTP/2 (5001), Graftcode Vision (5002).
 
-> **Browser caveat:** the gateway serves HTTP/2 **cleartext (h2c)**, which browsers
-> do not support. The perf-lab browser app therefore can't hit `:5001` directly.
-> For a browser-based benchmark, terminate TLS in front of the gateway with a
-> reverse proxy (caddy/nginx: `https://localhost:5001` → h2c `:5001`), or use the
-> gateway's WebSocket transport on `:5000`. Native clients can use h2c directly.
+> **Browser:** Vite on `https://localhost:5173` uses the shared mkcert PEM.
+> Same-origin **WSS** `/graft-ws` is proxied to `ws://127.0.0.1:5000/ws` (HTTPS
+> pages cannot open `ws://`). A Vite plugin (`vite-graft-proxy.js`) also
+> bridges `/graft/h2` → h2c `:5001/h2` (`node:http2.connect`, not `server.proxy`).
+> gg 1.4.6 RST_STREAMs Node HTTP/2 `POST /h2` with `NGHTTP2_PROTOCOL_ERROR`
+> (reproduced with the official hypertube Node client, without Vite). Until that
+> works, the UI defaults to WSS; set `VITE_GRAFT_TRANSPORT=h2` to try `/graft/h2`.
+> Native clients can still use `http://localhost:5001/h2` if their HTTP/2 stack
+> is compatible.
 
 ## Frontend (perf-lab)
 
-The React app depends on private Graftcode npm packages
-(`@graft/nuget-EnergyPriceService`, `@graftcode/design-system`) that are not on the
-public registry, so `npm install` requires access to Graftcode's private registry.
-Once installed, copy `.env.example` to `.env` and run `npm run dev`.
+Copy `official/perf-lab/.env.example` to `.env`, install the graft from
+`GET http://localhost:5000/npm` (`npm install --no-save --registry …`), then:
+
+```bash
+cd official/perf-lab
+npm run dev
+# Open https://localhost:5173  (mkcert — no cert warning after mkcert -install)
+```
+
+Restart Vite after changing `vite.config.js` or reinstalling the graft. The
+dev server uses `strictPort: true` on 5173 — stop any leftover HTTP Vite first.

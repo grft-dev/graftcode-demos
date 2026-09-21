@@ -99,7 +99,7 @@ dotnet run
 cd official/perf-lab
 npm install
 npm run dev
-# Open http://localhost:5173
+# Open https://localhost:5173
 ```
 
 The `.env` in `official/perf-lab/` already points to `https://localhost:8090` (REST) and `https://localhost:5005` (gRPC). Copy `.env.example` to `.env` if you need to change the URLs.

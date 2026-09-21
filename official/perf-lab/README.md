@@ -19,7 +19,7 @@ One call returning N price points (configurable: 1 k – 50 k). **Run comparison
 - REST JSON (one response, decoded with `JSON.parse`)
 - gRPC unary (one protobuf response, decoded by `@bufbuild/protobuf`)
 - gRPC server-streaming (`streamPrices` — points arrive one at a time over one HTTP/2 stream)
-- Graftcode (direct method call over the gateway WebSocket)
+- Graftcode (same-origin WSS to the gateway; optional `VITE_GRAFT_TRANSPORT=h2` via `/graft/h2`)
 
 The cloud cost calculator uses REST, gRPC **unary**, and Graftcode. Streaming is a protocol variant of the same gRPC channel, not a fourth integration technology.
 
@@ -40,7 +40,8 @@ src/
     graft.js             Mock for @graft/nuget-EnergyPriceService
     design-system.jsx    Mock for @graftcode/design-system components
     design-system.css    Stub styles
-vite.config.js     Aliases that map private packages to local stubs
+vite.config.js     HTTPS (mkcert) + h2c proxy plugin; design-system/crypto aliases
+vite-graft-proxy.js  Bridges `/graft/h2` → gg h2c `:5001/h2`
 Dockerfile         node:22-alpine build → nginx:alpine serve
 nginx.conf         Serves on port 81; proxies /grpc/* on port 5003
 ```
@@ -50,6 +51,7 @@ nginx.conf         Serves on port 81; proxies /grpc/* on port 5003
 ```bash
 npm install
 npm run dev
+# Open https://localhost:5173
 ```
 
 Requires `.env` with:
@@ -57,16 +59,16 @@ Requires `.env` with:
 ```
 VITE_REST_URL=https://localhost:8090
 VITE_GRPC_URL=https://localhost:5005
-VITE_GRAFT_WS_URL=ws://localhost:5000/ws
+VITE_GRAFT_H2_PATH=/graft/h2
 ```
 
-Copy `.env.example` to `.env` and start the two .NET backends plus the Graftcode gateway before running the frontend. See the root `README.md` for backend setup.
+Copy `.env.example` to `.env` and start the two .NET backends plus the Graftcode gateway (`HTTP2-SETUP.md`) before running the frontend.
 
 ```bash
 npm test
 ```
 
-Playwright hits the live REST (`:8090`), gRPC (`:5005`), and Graftcode WS (`:5000`) backends — they must already be running.
+Playwright hits `https://localhost:5173` plus live REST (`:8090`), gRPC (`:5005`), and Graftcode through same-origin WSS (`/graft-ws` → gg `:5000`). They must already be running.
 
 ## Build
 
