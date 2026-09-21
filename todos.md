@@ -68,10 +68,10 @@ Potrzebne dla ścieżki B i kolumny Graftcode „po sieci”, nie mock.
 
 ### 1.5 Docker gateway (`official/graftcode-gateway`, `official/electric-company-be/Dockerfile`)
 
-- [ ] Zbudować `official/graftcode-gateway` (context: root repo — Dockerfile kopiuje `official/electric-company-be/`)
-- [ ] Zbudować `official/electric-company-be/Dockerfile` (uwaga: `wget` bez `-q`, hardcode `gg_linux_amd64.deb`)
-- [ ] Uruchomić, poll `/npm` / `/libraries`, jedna prawdziwa metoda `GetPrice` / `GetPriceHistory`
-- [ ] **Nie** podawać fake `--projectKey` (kontener pada na decode JWT). Klucz tylko z portal.graftcode.com albo pominąć flagę.
+- [x] Zbudować `official/graftcode-gateway` (context: root repo — Dockerfile kopiuje `official/electric-company-be/`)
+- [x] Zbudować `official/electric-company-be/Dockerfile` (`wget -q`, `gg_linux_${TARGETARCH}.deb`)
+- [x] Uruchomić, poll `/npm` / `/libraries`, jedna prawdziwa metoda `GetPrice` / `GetPriceHistory`
+- [x] **Nie** podawać fake `--projectKey` (kontener pada na decode JWT). Klucz tylko z portal.graftcode.com albo pominąć flagę.
 
 ### 1.6 Deploy Azure (README + `AZURE-DEPLOY.md` + `deploy-azure.ps1`)
 

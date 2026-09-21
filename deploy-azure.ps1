@@ -112,12 +112,19 @@ Invoke-Az containerapp create -g $ResourceGroup -n $grpcApp --environment $EnvNa
 $grpcFqdn = Get-AzValue containerapp show -g $ResourceGroup -n $grpcApp --query properties.configuration.ingress.fqdn -o tsv
 
 Write-Host "==> Deploying Graftcode gateway (transport auto — WebSocket via HTTP upgrade)"
-Invoke-Az containerapp create -g $ResourceGroup -n $gwApp --environment $EnvName `
-  --image "$acrServer/graft-gateway:latest" `
-  --registry-server $acrServer --registry-username $acrUser --registry-password $acrPass `
-  --target-port 80 --ingress external --transport auto `
-  --min-replicas 1 --cpu 0.5 --memory 1Gi `
-  --env-vars "GG_PROJECT_KEY=$GraftProjectKey" -o none
+# Never inject a fake/placeholder --projectKey (JWT decode fails and the container exits).
+# Pass a real key from https://portal.graftcode.com via -GraftProjectKey, or omit it.
+$gwArgs = @(
+  'containerapp', 'create', '-g', $ResourceGroup, '-n', $gwApp, '--environment', $EnvName,
+  '--image', "$acrServer/graft-gateway:latest",
+  '--registry-server', $acrServer, '--registry-username', $acrUser, '--registry-password', $acrPass,
+  '--target-port', '80', '--ingress', 'external', '--transport', 'auto',
+  '--min-replicas', '1', '--cpu', '0.5', '--memory', '1Gi', '-o', 'none'
+)
+if ($GraftProjectKey -and $GraftProjectKey -ne '<paste_your_project_key_here>') {
+  $gwArgs += @('--env-vars', "GG_PROJECT_KEY=$GraftProjectKey")
+}
+Invoke-Az @gwArgs
 $gwFqdn = Get-AzValue containerapp show -g $ResourceGroup -n $gwApp --query properties.configuration.ingress.fqdn -o tsv
 
 Write-Host "    REST:    https://$restFqdn"
