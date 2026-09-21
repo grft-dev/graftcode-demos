@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
-import { callGrpcGetPriceHistory } from './grpcClient'
+import { callGrpcGetPrice, callGrpcGetPriceHistory } from './grpcClient'
 
 function App() {
   const currencyOptions = [
@@ -54,6 +54,9 @@ function App() {
   const [restHistoryKb, setRestHistoryKb] = useState(null)
   const [grpcHistoryMs, setGrpcHistoryMs] = useState(null)
   const [graftHistoryMs, setGraftHistoryMs] = useState(null)
+  const [restBaselineMs, setRestBaselineMs] = useState(null)
+  const [grpcBaselineMs, setGrpcBaselineMs] = useState(null)
+  const [graftBaselineMs, setGraftBaselineMs] = useState(null)
 
   const [rps, setRps] = useState(200000)
   const [cloudProvider, setCloudProvider] = useState('Azure')
@@ -61,33 +64,43 @@ function App() {
 
   useEffect(() => {
     try {
-      GraftConfig.host = import.meta.env.VITE_GRAFT_WS_URL ?? 'ws://localhost:5001/ws'
+      GraftConfig.host = import.meta.env.VITE_GRAFT_WS_URL ?? 'ws://localhost:5000/ws'
     } catch (err) {
       setGraftError(err?.message || 'Failed to initialize GraftConfig')
     }
   }, [])
 
   const getEnergyPrice = async () => {
-    const calculatedPrice = await EnergyPriceService.GetPrice()
+    const calculatedPrice = await EnergyPriceService.getPrice()
     setPrice(calculatedPrice)
   }
 
-  const getEstimatedNetworkLatency = () => {
-    const times = [restHistoryMs, grpcHistoryMs].filter(t => t !== null)
-    if (times.length === 0) return 0
-    return Math.round(Math.min(...times) * 0.8)
+  const round1 = (ms) => Math.round(ms * 10) / 10
+
+  // Per-request overhead of one channel, measured with a call that returns a
+  // single value. The first call is discarded because it also pays for the
+  // TLS/WebSocket handshake, which is not a per-request cost.
+  const measureBaseline = async (call, runs = 3) => {
+    await call()
+    let best = Infinity
+    for (let i = 0; i < runs; i++) {
+      const t = performance.now()
+      await call()
+      best = Math.min(best, performance.now() - t)
+    }
+    return round1(best)
   }
 
   const msForTech = (tech) => {
-    if (tech === 'REST') return adjustForLatency(restHistoryMs)
-    if (tech === 'gRPC') return adjustForLatency(grpcHistoryMs)
-    if (tech === 'Graftcode') return adjustForLatency(graftHistoryMs)
+    if (tech === 'REST') return adjustForLatency(restHistoryMs, restBaselineMs)
+    if (tech === 'gRPC') return adjustForLatency(grpcHistoryMs, grpcBaselineMs)
+    if (tech === 'Graftcode') return adjustForLatency(graftHistoryMs, graftBaselineMs)
     return null
   }
 
-  const adjustForLatency = (time) => {
-    if (!excludeNetworkLatency || time === null) return time
-    return Math.max(0, time - getEstimatedNetworkLatency())
+  const adjustForLatency = (time, baselineMs) => {
+    if (!excludeNetworkLatency || time === null || baselineMs === null) return time
+    return round1(Math.max(0, time - baselineMs))
   }
 
   const runPayloadComparison = async () => {
@@ -97,30 +110,36 @@ function App() {
     setRestHistoryKb(null)
     setGrpcHistoryMs(null)
     setGraftHistoryMs(null)
+    setRestBaselineMs(null)
+    setGrpcBaselineMs(null)
+    setGraftBaselineMs(null)
     try {
       const restHost = import.meta.env.VITE_REST_URL ?? 'https://localhost:8090'
       const grpcBase = import.meta.env.VITE_GRPC_URL ?? 'https://localhost:5005'
 
       // REST: one GET returning a big JSON array. Parse into objects so it's
       // apples-to-apples with gRPC/Graftcode (which decode into objects).
+      setRestBaselineMs(await measureBaseline(() => fetch(`${restHost}/api/EnergyPrice/price`).then(r => r.text())))
       let t = performance.now()
       const resp = await fetch(`${restHost}/api/EnergyPrice/history?count=${payloadCount}`)
       const text = await resp.text()
       const restPoints = JSON.parse(text)
       void restPoints.length
-      setRestHistoryMs(Math.round(performance.now() - t))
+      setRestHistoryMs(round1(performance.now() - t))
       setRestHistoryKb(Math.round(text.length / 1024))
 
       // gRPC unary: one call returning a repeated protobuf message (decoded to objects).
+      setGrpcBaselineMs(await measureBaseline(() => callGrpcGetPrice(grpcBase)))
       t = performance.now()
       await callGrpcGetPriceHistory(grpcBase, payloadCount)
-      setGrpcHistoryMs(Math.round(performance.now() - t))
+      setGrpcHistoryMs(round1(performance.now() - t))
 
-      // Graftcode: one static method call returning double[] over WebSocket — no HTTP overhead.
+      // Graftcode: one static method call returning double[] over the gateway's WebSocket.
+      setGraftBaselineMs(await measureBaseline(() => EnergyPriceService.getPrice()))
       t = performance.now()
-      const graftPoints = await EnergyPriceService.GetPriceHistory(payloadCount)
+      const graftPoints = await EnergyPriceService.getPriceHistory(payloadCount)
       void graftPoints.length
-      setGraftHistoryMs(Math.round(performance.now() - t))
+      setGraftHistoryMs(round1(performance.now() - t))
     } catch (err) {
       setPayloadError(err?.message || 'Request failed — are the backends running?')
     } finally {
@@ -180,17 +199,15 @@ function App() {
     return { timeSavedPerRequestMs: timeSavedMs, totalTimeSavedHours, annualCostSavings, instanceType, targetName, currentMs, targetMs }
   }
 
-  const estimatedLatency = getEstimatedNetworkLatency()
-
-  const formatPayloadResult = (label, ms, kb) => {
+  const formatPayloadResult = (label, ms, kb, baselineMs) => {
     if (ms === null) return <span>{label}: <span className="muted">—</span></span>
-    const adj = adjustForLatency(ms)
+    const adj = adjustForLatency(ms, baselineMs)
     return (
       <span>
         {label}: <strong>{adj} ms</strong>
         {kb != null ? ` (${kb} KB)` : ''}
-        {excludeNetworkLatency && estimatedLatency > 0 && (
-          <span className="latency-breakdown"> ({ms} ms − {estimatedLatency} ms network)</span>
+        {excludeNetworkLatency && baselineMs !== null && (
+          <span className="latency-breakdown"> ({ms} ms − {baselineMs} ms overhead)</span>
         )}
       </span>
     )
@@ -240,9 +257,6 @@ function App() {
                 onChange={(next) => setExcludeNetworkLatency(next === true)}
                 label="Exclude Network Latency"
               />
-              {estimatedLatency > 0 && (
-                <span className="latency-estimate">~{estimatedLatency} ms estimated</span>
-              )}
             </div>
             <Button
               variant="outlined"
@@ -272,19 +286,20 @@ function App() {
         )}
 
         <div className="summary">
-          <div>{formatPayloadResult('REST (JSON)', restHistoryMs, restHistoryKb)}</div>
-          <div>{formatPayloadResult('gRPC unary (protobuf)', grpcHistoryMs, null)}</div>
-          <div>{formatPayloadResult('Graftcode (direct call)', graftHistoryMs, null)}</div>
+          <div>{formatPayloadResult('REST (JSON)', restHistoryMs, restHistoryKb, restBaselineMs)}</div>
+          <div>{formatPayloadResult('gRPC unary (protobuf)', grpcHistoryMs, null, grpcBaselineMs)}</div>
+          <div>{formatPayloadResult('Graftcode (direct call)', graftHistoryMs, null, graftBaselineMs)}</div>
         </div>
 
         {(restHistoryMs !== null && grpcHistoryMs !== null && graftHistoryMs !== null) && (() => {
           const results = [
-            { name: 'REST', ms: adjustForLatency(restHistoryMs) },
-            { name: 'gRPC', ms: adjustForLatency(grpcHistoryMs) },
-            { name: 'Graftcode', ms: adjustForLatency(graftHistoryMs) },
+            { name: 'REST', ms: adjustForLatency(restHistoryMs, restBaselineMs) },
+            { name: 'gRPC', ms: adjustForLatency(grpcHistoryMs, grpcBaselineMs) },
+            { name: 'Graftcode', ms: adjustForLatency(graftHistoryMs, graftBaselineMs) },
           ]
           const fastest = results.reduce((a, b) => a.ms < b.ms ? a : b)
           const slowest = results.reduce((a, b) => a.ms > b.ms ? a : b)
+          if (slowest.ms <= 0) return null
           const pct = (((slowest.ms - fastest.ms) / slowest.ms) * 100).toFixed(1)
           return (
             <div className="callout">
@@ -301,10 +316,10 @@ function App() {
               <strong>Why Excluding Network Latency Matters:</strong>
             </p>
             <p>
-              Both REST and gRPC requests travel the same network path, so each carries the same round-trip overhead. To isolate the actual encoding/transfer difference between JSON and protobuf, we subtract the estimated shared network overhead from both results.
+              Every call pays a fixed cost that has nothing to do with the payload: the round trip itself plus request and response framing. On a fast local network that cost can dominate and hide the real difference between JSON, protobuf, and Graftcode.
             </p>
             <p>
-              The estimate is 80% of the fastest observed result — a conservative proxy for the per-request RTT contribution. The higher the network latency, the more it masks the real format/protocol difference.
+              Each path is therefore measured twice. First with a call that returns a single value, which gives the per-request overhead of that exact channel, then with the full payload. Subtracting a path's own overhead from its own payload result leaves only the work it actually did on the data.
             </p>
             <Button
               variant="secondary"
