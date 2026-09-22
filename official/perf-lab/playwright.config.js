@@ -8,15 +8,13 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'https://localhost:5173',
-    ignoreHTTPSErrors: true,
+    baseURL: 'http://localhost:5173',
     ...devices['Desktop Chrome'],
   },
   webServer: {
     command: 'npm run dev',
-    url: 'https://localhost:5173',
+    url: 'http://localhost:5173',
     reuseExistingServer: true,
-    ignoreHTTPSErrors: true,
     timeout: 60_000,
   },
 })

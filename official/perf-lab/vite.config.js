@@ -1,22 +1,13 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { h2cProxy } from './vite-graft-proxy.js'
 
 const r = (p) => fileURLToPath(new URL(p, import.meta.url))
-const certDir = r('../certs')
-const cert = path.join(certDir, 'localhost.pem')
-const key = path.join(certDir, 'localhost-key.pem')
 
 export default defineConfig({
   plugins: [react(), h2cProxy()],
   server: {
-    https: {
-      cert: fs.readFileSync(cert),
-      key: fs.readFileSync(key),
-    },
     proxy: {
       '/graft-ws': {
         target: 'ws://127.0.0.1:5000',

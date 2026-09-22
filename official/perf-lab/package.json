@@ -14,6 +14,7 @@
     "@bufbuild/protobuf": "1.10.0",
     "@connectrpc/connect": "1.6.1",
     "@connectrpc/connect-web": "1.6.1",
+    "@graft/nuget-EnergyPriceService": "^1.2.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
