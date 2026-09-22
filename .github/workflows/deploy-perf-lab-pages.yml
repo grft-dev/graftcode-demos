@@ -1,0 +1,67 @@
+name: Deploy perf lab to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'official/perf-lab/**'
+      - '.github/workflows/deploy-perf-lab-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: official/perf-lab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: official/perf-lab/package.json
+
+      - name: Install dependencies
+        run: |
+          printf '@graft:registry=https://grft.dev/019d9fab-b7c0-73af-8344-d6b7a2aef977__graftcode\n' > .npmrc
+          npm install --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_REST_URL: ${{ vars.PERF_LAB_REST_URL }}
+          VITE_GRPC_URL: ${{ vars.PERF_LAB_GRPC_URL }}
+          VITE_GRAFT_WS_URL: ${{ vars.PERF_LAB_GRAFT_WS_URL }}
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: official/perf-lab/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

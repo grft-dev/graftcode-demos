@@ -7,6 +7,9 @@ const r = (p) => fileURLToPath(new URL(p, import.meta.url))
 
 export default defineConfig({
   plugins: [react(), h2cProxy()],
+  base: process.env.GITHUB_ACTIONS
+    ? `/${process.env.GITHUB_REPOSITORY?.split('/')[1] ?? 'graftcode-demos'}/`
+    : '/',
   server: {
     proxy: {
       '/graft-ws': {

@@ -74,7 +74,7 @@ function App() {
         GraftConfig.host = `${window.location.origin}${h2Path}`
       } else {
         const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-        GraftConfig.host = `${wsProto}://${window.location.host}/graft-ws`
+        GraftConfig.host = import.meta.env.VITE_GRAFT_WS_URL || `${wsProto}://${window.location.host}/graft-ws`
       }
       GraftConfig.stateless = true
     } catch (err) {
@@ -131,8 +131,8 @@ function App() {
     setGrpcBaselineMs(null)
     setGraftBaselineMs(null)
     try {
-      const restHost = import.meta.env.VITE_REST_URL ?? 'https://localhost:8090'
-      const grpcBase = import.meta.env.VITE_GRPC_URL ?? 'https://localhost:5005'
+      const restHost = import.meta.env.VITE_REST_URL || 'https://localhost:8090'
+      const grpcBase = import.meta.env.VITE_GRPC_URL || 'https://localhost:5005'
 
       // REST: one GET returning a big JSON array. Parse into objects so it's
       // apples-to-apples with gRPC/Graftcode (which decode into objects).
