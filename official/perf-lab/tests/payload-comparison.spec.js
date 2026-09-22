@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-function parseMs(summary, label) {
-  const line = summary.split('\n').find((l) => l.startsWith(label))
-  expect(line, `missing summary row for ${label}`).toBeTruthy()
+function parseMs(summary, ...labels) {
+  const line = summary.split('\n').find((l) => labels.some((label) => l.startsWith(label)))
+  expect(line, `missing summary row for ${labels.join(' or ')}`).toBeTruthy()
   const match = line.match(/(\d+(?:\.\d+)?)\s*ms/)
   expect(match, `no ms value in: ${line}`).toBeTruthy()
   return Number(match[1])
@@ -36,7 +36,7 @@ test.describe('perf-lab 1.3', () => {
       const rest = parseMs(summary, 'REST (JSON)')
       const unary = parseMs(summary, 'gRPC unary (protobuf)')
       const stream = parseMs(summary, 'gRPC stream (protobuf)')
-      const graft = parseMs(summary, 'Graftcode (WebSocket)')
+      const graft = parseMs(summary, 'Graftcode (WebSocket)', 'Graftcode (HTTP/2)')
       expect(rest).toBeGreaterThan(0)
       expect(unary).toBeGreaterThan(0)
       expect(stream).toBeGreaterThan(0)
