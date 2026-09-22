@@ -93,12 +93,6 @@ dotnet run
 
 ### 4 — Frontend
 
-`@graft/nuget-EnergyPriceService` is not on npmjs. The committed `.npmrc` in `official/perf-lab/` points `@graft` at the public project feed (no token):
-
-```
-@graft:registry=https://grft.dev/019d9fab-b7c0-73af-8344-d6b7a2aef977__graftcode
-```
-
 ```powershell
 cd official/perf-lab
 npm install
