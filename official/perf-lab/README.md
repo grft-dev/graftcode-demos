@@ -66,3 +66,17 @@ npm run build
 ```
 
 The Dockerfile is built by `deploy-azure.ps1` via ACR remote build; backend URLs are baked in as `VITE_*` build args.
+
+## GitHub Pages
+
+The repository workflow `.github/workflows/deploy-perf-lab-pages.yml` builds and deploys this frontend to GitHub Pages when changes land on `main`.
+
+Before the first run, add these **repository variables** under **Settings → Secrets and variables → Actions → Variables**:
+
+```text
+PERF_LAB_REST_URL=https://your-rest-backend.example.com
+PERF_LAB_GRPC_URL=https://your-grpc-backend.example.com
+PERF_LAB_GRAFT_WS_URL=wss://your-graft-gateway.example.com/ws
+```
+
+The backend services must allow requests from the Pages origin with CORS. GitHub Pages cannot proxy WebSocket, REST, or gRPC requests, so these URLs must be publicly reachable over HTTPS/WSS. Enable Pages in **Settings → Pages** with **GitHub Actions** as the source. The deployed site will be available at `https://<owner>.github.io/graftcode-demos/`.
