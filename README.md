@@ -93,11 +93,20 @@ dotnet run
 
 ### 4 — Frontend
 
+`@graft/nuget-EnergyPriceService` is not on npmjs. Copy the example npmrc, then install:
+
 ```powershell
 cd official/perf-lab
+Copy-Item .npmrc.example .npmrc
 npm install
 npm run dev
 # Open http://localhost:5173
+```
+
+`.npmrc` is gitignored. It only needs this line (no token):
+
+```
+@graft:registry=https://grft.dev/019d9fab-b7c0-73af-8344-d6b7a2aef977__graftcode
 ```
 
 The `.env` in `official/perf-lab/` already points to `https://localhost:8090` (REST) and `https://localhost:5005` (gRPC). Copy `.env.example` to `.env` if you need to change the URLs.

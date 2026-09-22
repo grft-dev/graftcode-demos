@@ -1,9 +1,3 @@
-# Copy to .npmrc and fill in your Graftcode registry details.
-# Do not commit .npmrc — it may contain auth tokens.
-#
-# @graft packages (generated gateway client):
-# @graft:registry=https://grft.dev/YOUR_PROJECT_ID__graftcode
-#
-# @graftcode packages (design system):
-# @graftcode:registry=https://YOUR_PRIVATE_NPM_REGISTRY/
-# //YOUR_PRIVATE_NPM_REGISTRY/:_authToken=${NPM_AUTH_TOKEN}
+# Copy to .npmrc (do not commit .npmrc).
+# @graft packages come from the public project feed, not npmjs.
+@graft:registry=https://grft.dev/019d9fab-b7c0-73af-8344-d6b7a2aef977__graftcode
