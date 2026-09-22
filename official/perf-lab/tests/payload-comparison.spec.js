@@ -36,7 +36,7 @@ test.describe('perf-lab 1.3', () => {
       const rest = parseMs(summary, 'REST (JSON)')
       const unary = parseMs(summary, 'gRPC unary (protobuf)')
       const stream = parseMs(summary, 'gRPC stream (protobuf)')
-      const graft = parseMs(summary, 'Graftcode (WebSocket)', 'Graftcode (HTTP/2)')
+      const graft = parseMs(summary, 'Graftcode (direct call)')
       expect(rest).toBeGreaterThan(0)
       expect(unary).toBeGreaterThan(0)
       expect(stream).toBeGreaterThan(0)
