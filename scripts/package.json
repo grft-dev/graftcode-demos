@@ -1,0 +1,12 @@
+{
+  "name": "graftcode-demos-metrics",
+  "private": true,
+  "type": "module",
+  "description": "One-shot SLOC / token measurement for perf-lab EnergyPrice slice",
+  "scripts": {
+    "measure": "node measure-integration-metrics.mjs"
+  },
+  "dependencies": {
+    "js-tiktoken": "^1.0.21"
+  }
+}

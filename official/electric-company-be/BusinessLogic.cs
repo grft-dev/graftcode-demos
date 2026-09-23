@@ -177,5 +177,3 @@ public static class LoyaltyLogic
         return discounted < 0 ? 0 : discounted;
     }
 }
-
-

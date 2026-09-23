@@ -3,6 +3,22 @@ import './App.css'
 import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
 import { callGrpcGetPrice, callGrpcGetPriceHistory, streamGrpcPrices } from './grpcClient'
+import locMetrics from './metrics/loc-comparison.json'
+
+// Static counts, measured once by scripts/measure-integration-metrics.mjs over the
+// same getPrice/getPriceHistory path the benchmark above calls at runtime.
+const codeSlice = locMetrics.tables.energyPriceSlice
+const codeRows = ['rest', 'grpc', 'graftcode'].map((key) => {
+  const stack = codeSlice.stacks[key]
+  return {
+    key,
+    name: stack.name,
+    sloc: stack.sloc.code,
+    tokens: stack.tokens_cl100k,
+    glueSloc: stack.sloc_integration_plus_client,
+  }
+})
+const codeBaseline = codeRows.find((row) => row.key === 'graftcode')
 
 function App() {
   const currencyOptions = [
@@ -430,6 +446,45 @@ function App() {
             </div>
           )
         })()}
+      </section>
+
+      <section className="code-metrics">
+        <h3>Code &amp; AI Token Cost</h3>
+        <p>How much integration code a developer (or an AI assistant) has to write for the same <code>getPrice</code> / <code>getPriceHistory</code> calls benchmarked above. Counted once from the committed source — this table does not change when you run the comparison.</p>
+
+        <div className="metrics-table-wrap">
+          <table className="metrics-table">
+            <thead>
+              <tr>
+                <th scope="col">Technology</th>
+                <th scope="col">Lines of code</th>
+                <th scope="col">AI tokens</th>
+                <th scope="col">vs Graftcode</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codeRows.map((row) => (
+                <tr key={row.key} className={row.key === 'graftcode' ? 'winner' : undefined}>
+                  <td>{row.name}</td>
+                  <td>{row.sloc.toLocaleString()}</td>
+                  <td>{row.tokens.toLocaleString()}</td>
+                  <td>
+                    {row.key === 'graftcode'
+                      ? 'baseline'
+                      : `${(row.sloc / codeBaseline.sloc).toFixed(1)}x`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="callout">
+          <strong>
+            Graftcode needs {codeSlice.reductions.rest_to_graftcode.sloc_integration_plus_client}% less
+            integration code than REST and {codeSlice.reductions.grpc_to_graftcode.sloc_integration_plus_client}% less than gRPC
+          </strong>
+        </div>
       </section>
     </div>
   )

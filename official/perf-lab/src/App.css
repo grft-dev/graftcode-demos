@@ -271,6 +271,85 @@
   margin: 0;
 }
 
+/* Code & token metrics (static) */
+.code-metrics {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #ffffff;
+}
+
+.code-metrics h3 {
+  margin: 0 0 0.5rem 0;
+}
+
+.code-metrics > p {
+  margin: 0 0 1rem 0;
+  color: #6b7280;
+}
+
+.code-metrics code {
+  background: #f3f4f6;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.92em;
+}
+
+.metrics-table-wrap {
+  overflow-x: auto;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.metrics-table th:first-child,
+.metrics-table td:first-child {
+  text-align: left;
+}
+
+.metrics-table thead th {
+  color: #4b5563;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.metrics-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.metrics-table .winner td {
+  background: #fdf2f8;
+  color: #9d174d;
+  font-weight: 700;
+}
+
+.metrics-footnote {
+  margin-top: 0.9rem;
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.metrics-footnote p {
+  margin: 0 0 0.4rem 0;
+}
+
+.metrics-footnote p:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 720px) {
   .payload-header {
     flex-direction: column;
@@ -283,5 +362,10 @@
   .summary {
     flex-direction: column;
     gap: .5rem;
+  }
+
+  .metrics-table th,
+  .metrics-table td {
+    padding: 0.5rem 0.55rem;
   }
 }
