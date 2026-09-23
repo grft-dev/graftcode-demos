@@ -26,6 +26,16 @@ Both backends are .NET 8 / Kestrel so the runtime is identical — only wire for
 
 Extrapolates the measured performance difference to an annual cost saving based on your RPS and cloud provider.
 
+### Static integration metrics (SLOC / tokens)
+
+Latency is measured live. Lines of code and tokens are **not** — they were counted once from the EnergyPrice call path (REST vs gRPC vs Graftcode). See [src/metrics/METRICS.md](src/metrics/METRICS.md).
+
+The **Code & AI Token Cost** table below the cost calculator renders these frozen numbers by importing `src/metrics/loc-comparison.json`, so re-running the measurement updates the page without touching `App.jsx`:
+
+```bash
+cd ../../scripts && npm install && npm run measure
+```
+
 ## Project structure
 
 ```
@@ -33,6 +43,7 @@ src/
   App.jsx          Main UI and benchmark logic
   grpcClient.js    ConnectRPC client (with HTTP/2 connection caching)
   priceProto.js    Hand-authored protobuf descriptors (no protoc required)
+  metrics/         Frozen SLOC/token comparison (not computed at runtime — see METRICS.md)
   stubs/
     graft.js             Mock for @graft/nuget-EnergyPriceService
     design-system.jsx    Mock for @graftcode/design-system components

@@ -1,0 +1,60 @@
+{
+  "measuredAt": "2026-09-23T11:08:23.427Z",
+  "gitSha": "ac9b795a007075e1305f0f0e0f49963fa3f2508c",
+  "method": "tiktoken-proxy",
+  "disclaimer": "estimated tokens of handwritten integration code (cl100k_base on committed files from the EnergyPrice slice). This is NOT \"tokens to generate the system\" from an identical prompt experiment.",
+  "encoding": "cl100k_base",
+  "energyPriceSlice": {
+    "rest": {
+      "tokens_total": 1357,
+      "tokens_integration_plus_client": 1321
+    },
+    "grpc": {
+      "tokens_total": 2263,
+      "tokens_integration_plus_client": 1777
+    },
+    "graftcode": {
+      "tokens_total": 462,
+      "tokens_integration_plus_client": 364,
+      "note": "T_rules (Graftcode AI rules in context) is not included; this proxy only tokenizes committed application source."
+    }
+  },
+  "reductions": {
+    "rest_to_grpc": {
+      "sloc_total": -51.5,
+      "sloc_integration_plus_client": -21.3,
+      "tokens_total_cl100k": -66.8,
+      "tokens_integration_plus_client_cl100k": -34.5
+    },
+    "rest_to_graftcode": {
+      "sloc_total": 66.9,
+      "sloc_integration_plus_client": 77.9,
+      "tokens_total_cl100k": 66,
+      "tokens_integration_plus_client_cl100k": 72.4
+    },
+    "grpc_to_rest": {
+      "sloc_total": 34,
+      "sloc_integration_plus_client": 17.6,
+      "tokens_total_cl100k": 40,
+      "tokens_integration_plus_client_cl100k": 25.7
+    },
+    "grpc_to_graftcode": {
+      "sloc_total": 78.2,
+      "sloc_integration_plus_client": 81.8,
+      "tokens_total_cl100k": 79.6,
+      "tokens_integration_plus_client_cl100k": 79.5
+    },
+    "graftcode_to_rest": {
+      "sloc_total": -202.3,
+      "sloc_integration_plus_client": -351.9,
+      "tokens_total_cl100k": -193.7,
+      "tokens_integration_plus_client_cl100k": -262.9
+    },
+    "graftcode_to_grpc": {
+      "sloc_total": -358.1,
+      "sloc_integration_plus_client": -448.1,
+      "tokens_total_cl100k": -389.8,
+      "tokens_integration_plus_client_cl100k": -388.2
+    }
+  }
+}

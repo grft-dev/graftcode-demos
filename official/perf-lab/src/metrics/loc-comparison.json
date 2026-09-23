@@ -1,0 +1,734 @@
+{
+  "measuredAt": "2026-09-23T11:08:23.427Z",
+  "gitSha": "ac9b795a007075e1305f0f0e0f49963fa3f2508c",
+  "tool": {
+    "sloc": "custom cloc-style scanner in scripts/measure-integration-metrics.mjs (code vs // and /* */ comments vs blank; strings preserved)",
+    "tokens": "js-tiktoken cl100k_base (OpenAI-compatible). Proxy on committed source — not a live agent session."
+  },
+  "headline": "energyPriceSlice",
+  "tables": {
+    "energyPriceSlice": {
+      "description": "Code on the perf-lab getPrice / getPriceHistory path. BusinessLogic.cs is excluded. StreamPrices counted only under gRPC.",
+      "stacks": {
+        "rest": {
+          "name": "REST",
+          "publicSurface": {
+            "endpoints_or_methods": [
+              "GetPrice",
+              "GetHistory"
+            ],
+            "count": 2
+          },
+          "files": [
+            {
+              "path": "official/electric-company-ws/EnergyPriceService.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 8,
+                "comment": 0,
+                "blank": 1,
+                "total": 9
+              },
+              "tokens_cl100k": 36,
+              "bytes": 169,
+              "publicMembers": {
+                "kind": "method",
+                "names": [
+                  "GetPrice"
+                ],
+                "count": 1
+              }
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 41,
+                "comment": 2,
+                "blank": 4,
+                "total": 47
+              },
+              "tokens_cl100k": 334,
+              "bytes": 1619,
+              "publicMembers": {
+                "kind": "method",
+                "names": [
+                  "GetPrice",
+                  "GetHistory"
+                ],
+                "count": 2
+              }
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 12,
+                "comment": 2,
+                "blank": 1,
+                "total": 15
+              },
+              "tokens_cl100k": 135,
+              "bytes": 546
+            },
+            {
+              "path": "official/electric-company-ws/Program.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 60,
+                "comment": 16,
+                "blank": 14,
+                "total": 90
+              },
+              "tokens_cl100k": 686,
+              "bytes": 3786,
+              "note": "Entire Kestrel/TLS/CORS/Swagger host counted as handwritten integration."
+            },
+            {
+              "path": "official/perf-lab/src/App.jsx",
+              "bucket": "client",
+              "sloc": {
+                "code": 9,
+                "comment": 2,
+                "blank": 1,
+                "total": 12
+              },
+              "tokens_cl100k": 166,
+              "bytes": 692,
+              "excerpt": "App.jsx lines 134, 137–146 (REST fetch + JSON.parse). Lab harness (performance.now, setState) left in because it wraps the fetch."
+            }
+          ],
+          "sloc": {
+            "code": 130,
+            "comment": 22,
+            "blank": 21
+          },
+          "tokens_cl100k": 1357,
+          "tokens_integration_plus_client_cl100k": 1321,
+          "sloc_integration_plus_client": 122,
+          "buckets": {
+            "domain": {
+              "sloc": {
+                "code": 8,
+                "comment": 0,
+                "blank": 1
+              },
+              "tokens_cl100k": 36,
+              "files": [
+                "official/electric-company-ws/EnergyPriceService.cs"
+              ]
+            },
+            "integration": {
+              "sloc": {
+                "code": 113,
+                "comment": 20,
+                "blank": 19
+              },
+              "tokens_cl100k": 1155,
+              "files": [
+                "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+                "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+                "official/electric-company-ws/Program.cs"
+              ]
+            },
+            "client": {
+              "sloc": {
+                "code": 9,
+                "comment": 2,
+                "blank": 1
+              },
+              "tokens_cl100k": 166,
+              "files": [
+                "official/perf-lab/src/App.jsx"
+              ]
+            }
+          }
+        },
+        "grpc": {
+          "name": "gRPC",
+          "publicSurface": {
+            "endpoints_or_methods": [
+              "GetPrice",
+              "GetPriceHistory",
+              "StreamPrices"
+            ],
+            "count": 3,
+            "extra": "StreamPrices has no REST/Graftcode counterpart"
+          },
+          "files": [
+            {
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 49,
+                "comment": 4,
+                "blank": 7,
+                "total": 60
+              },
+              "tokens_cl100k": 486,
+              "bytes": 2227,
+              "publicMembers": {
+                "kind": "method",
+                "names": [],
+                "count": 0
+              },
+              "note": "Includes StreamPrices (gRPC-only extra). Logic is inline; no BusinessLogic.cs."
+            },
+            {
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "bucket": "integration",
+              "sloc": {
+                "code": 31,
+                "comment": 6,
+                "blank": 11,
+                "total": 48
+              },
+              "tokens_cl100k": 301,
+              "bytes": 1271,
+              "publicMembers": {
+                "kind": "rpc",
+                "names": [
+                  "GetPrice",
+                  "GetPriceHistory",
+                  "StreamPrices"
+                ],
+                "count": 3
+              }
+            },
+            {
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 44,
+                "comment": 8,
+                "blank": 9,
+                "total": 61
+              },
+              "tokens_cl100k": 562,
+              "bytes": 2422
+            },
+            {
+              "path": "official/perf-lab/src/priceProto.js",
+              "bucket": "client",
+              "sloc": {
+                "code": 47,
+                "comment": 3,
+                "blank": 7,
+                "total": 57
+              },
+              "tokens_cl100k": 610,
+              "bytes": 2275
+            },
+            {
+              "path": "official/perf-lab/src/grpcClient.js",
+              "bucket": "client",
+              "sloc": {
+                "code": 26,
+                "comment": 5,
+                "blank": 4,
+                "total": 35
+              },
+              "tokens_cl100k": 304,
+              "bytes": 1308,
+              "publicMembers": {
+                "kind": "function",
+                "names": [
+                  "callGrpcGetPrice",
+                  "callGrpcGetPriceHistory",
+                  "streamGrpcPrices"
+                ],
+                "count": 3
+              }
+            }
+          ],
+          "sloc": {
+            "code": 197,
+            "comment": 26,
+            "blank": 38
+          },
+          "tokens_cl100k": 2263,
+          "tokens_integration_plus_client_cl100k": 1777,
+          "sloc_integration_plus_client": 148,
+          "buckets": {
+            "domain": {
+              "sloc": {
+                "code": 49,
+                "comment": 4,
+                "blank": 7
+              },
+              "tokens_cl100k": 486,
+              "files": [
+                "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs"
+              ]
+            },
+            "integration": {
+              "sloc": {
+                "code": 75,
+                "comment": 14,
+                "blank": 20
+              },
+              "tokens_cl100k": 863,
+              "files": [
+                "official/grpc-energy-price-dotnet/Protos/price.proto",
+                "official/grpc-energy-price-dotnet/Program.cs"
+              ]
+            },
+            "client": {
+              "sloc": {
+                "code": 73,
+                "comment": 8,
+                "blank": 11
+              },
+              "tokens_cl100k": 914,
+              "files": [
+                "official/perf-lab/src/priceProto.js",
+                "official/perf-lab/src/grpcClient.js"
+              ]
+            }
+          }
+        },
+        "graftcode": {
+          "name": "Graftcode",
+          "publicSurface": {
+            "endpoints_or_methods": [
+              "GetPrice",
+              "GetPriceHistory"
+            ],
+            "count": 2
+          },
+          "files": [
+            {
+              "path": "official/electric-company-be/EnergyPriceService.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 16,
+                "comment": 0,
+                "blank": 2,
+                "total": 18
+              },
+              "tokens_cl100k": 98,
+              "bytes": 422,
+              "publicMembers": {
+                "kind": "method",
+                "names": [
+                  "GetPrice",
+                  "GetPriceHistory"
+                ],
+                "count": 2
+              }
+            },
+            {
+              "path": "official/perf-lab/src/App.jsx",
+              "bucket": "client",
+              "sloc": {
+                "code": 27,
+                "comment": 4,
+                "blank": 3,
+                "total": 34
+              },
+              "tokens_cl100k": 364,
+              "bytes": 1434,
+              "excerpt": "App.jsx lines 3 (import), 66–83 (GraftConfig), 85–92 (getPrice), 160–163 (getPriceHistory). No handwritten integration server — gg hosts the DLL."
+            }
+          ],
+          "sloc": {
+            "code": 43,
+            "comment": 4,
+            "blank": 5
+          },
+          "tokens_cl100k": 462,
+          "tokens_integration_plus_client_cl100k": 364,
+          "sloc_integration_plus_client": 27,
+          "buckets": {
+            "domain": {
+              "sloc": {
+                "code": 16,
+                "comment": 0,
+                "blank": 2
+              },
+              "tokens_cl100k": 98,
+              "files": [
+                "official/electric-company-be/EnergyPriceService.cs"
+              ]
+            },
+            "client": {
+              "sloc": {
+                "code": 27,
+                "comment": 4,
+                "blank": 3
+              },
+              "tokens_cl100k": 364,
+              "files": [
+                "official/perf-lab/src/App.jsx"
+              ]
+            }
+          }
+        }
+      },
+      "reductions": {
+        "rest_to_grpc": {
+          "sloc_total": -51.5,
+          "sloc_integration_plus_client": -21.3,
+          "tokens_total_cl100k": -66.8,
+          "tokens_integration_plus_client_cl100k": -34.5
+        },
+        "rest_to_graftcode": {
+          "sloc_total": 66.9,
+          "sloc_integration_plus_client": 77.9,
+          "tokens_total_cl100k": 66,
+          "tokens_integration_plus_client_cl100k": 72.4
+        },
+        "grpc_to_rest": {
+          "sloc_total": 34,
+          "sloc_integration_plus_client": 17.6,
+          "tokens_total_cl100k": 40,
+          "tokens_integration_plus_client_cl100k": 25.7
+        },
+        "grpc_to_graftcode": {
+          "sloc_total": 78.2,
+          "sloc_integration_plus_client": 81.8,
+          "tokens_total_cl100k": 79.6,
+          "tokens_integration_plus_client_cl100k": 79.5
+        },
+        "graftcode_to_rest": {
+          "sloc_total": -202.3,
+          "sloc_integration_plus_client": -351.9,
+          "tokens_total_cl100k": -193.7,
+          "tokens_integration_plus_client_cl100k": -262.9
+        },
+        "graftcode_to_grpc": {
+          "sloc_total": -358.1,
+          "sloc_integration_plus_client": -448.1,
+          "tokens_total_cl100k": -389.8,
+          "tokens_integration_plus_client_cl100k": -388.2
+        }
+      },
+      "notes": [
+        "Graftcode GetPriceHistory returns double[]; REST and gRPC return PricePoint records.",
+        "gg / Kestrel binaries are not counted. Generated protoc C# under obj/ is not counted.",
+        "Graftcode integration (server) SLOC is 0 because the gateway hosts the class library; only the facade is handwritten."
+      ]
+    },
+    "fullSurface": {
+      "description": "APPENDIX. REST HTTP surface for billing/* vs Graftcode BusinessLogic in the DLL. Not the lab invocation path. Do not use as the page headline without the disclaimer.",
+      "disclaimer": "perf-lab does not call BillingLogic / MeterLogic / TariffLogic / OutageLogic / LoyaltyLogic.",
+      "stacks": {
+        "rest": {
+          "name": "REST",
+          "publicSurface": {
+            "note": "All controllers + DTOs + BusinessLogic + EnergyPrice slice server files. Client omitted."
+          },
+          "files": [
+            {
+              "path": "official/electric-company-ws/EnergyPriceService.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 8,
+                "comment": 0,
+                "blank": 1,
+                "total": 9
+              },
+              "tokens_cl100k": 36,
+              "bytes": 169,
+              "publicMembers": {
+                "kind": "method",
+                "names": [
+                  "GetPrice"
+                ],
+                "count": 1
+              }
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 41,
+                "comment": 2,
+                "blank": 4,
+                "total": 47
+              },
+              "tokens_cl100k": 334,
+              "bytes": 1619,
+              "publicMembers": {
+                "kind": "method",
+                "names": [
+                  "GetPrice",
+                  "GetHistory"
+                ],
+                "count": 2
+              }
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 12,
+                "comment": 2,
+                "blank": 1,
+                "total": 15
+              },
+              "tokens_cl100k": 135,
+              "bytes": 546
+            },
+            {
+              "path": "official/electric-company-ws/Program.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 60,
+                "comment": 16,
+                "blank": 14,
+                "total": 90
+              },
+              "tokens_cl100k": 686,
+              "bytes": 3786,
+              "note": "Entire Kestrel/TLS/CORS/Swagger host counted as handwritten integration."
+            },
+            {
+              "path": "official/electric-company-ws/BusinessLogic.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 153,
+                "comment": 0,
+                "blank": 28,
+                "total": 181
+              },
+              "tokens_cl100k": 1807,
+              "bytes": 6985
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/BillingController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 33,
+                "comment": 0,
+                "blank": 6,
+                "total": 39
+              },
+              "tokens_cl100k": 274,
+              "bytes": 1455
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/MeterController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 33,
+                "comment": 0,
+                "blank": 6,
+                "total": 39
+              },
+              "tokens_cl100k": 284,
+              "bytes": 1470
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/TariffController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 41,
+                "comment": 0,
+                "blank": 5,
+                "total": 46
+              },
+              "tokens_cl100k": 294,
+              "bytes": 1564
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/OutageController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 27,
+                "comment": 0,
+                "blank": 5,
+                "total": 32
+              },
+              "tokens_cl100k": 246,
+              "bytes": 1246
+            },
+            {
+              "path": "official/electric-company-ws/Controllers/LoyaltyController.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 33,
+                "comment": 0,
+                "blank": 6,
+                "total": 39
+              },
+              "tokens_cl100k": 291,
+              "bytes": 1466
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/BillingDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 23,
+                "comment": 0,
+                "blank": 6,
+                "total": 29
+              },
+              "tokens_cl100k": 163,
+              "bytes": 686
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/MeterDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 22,
+                "comment": 0,
+                "blank": 6,
+                "total": 28
+              },
+              "tokens_cl100k": 157,
+              "bytes": 638
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/TariffDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 25,
+                "comment": 0,
+                "blank": 5,
+                "total": 30
+              },
+              "tokens_cl100k": 221,
+              "bytes": 874
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/OutageDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 19,
+                "comment": 0,
+                "blank": 5,
+                "total": 24
+              },
+              "tokens_cl100k": 142,
+              "bytes": 608
+            },
+            {
+              "path": "official/electric-company-ws/Dtos/LoyaltyDtos.cs",
+              "bucket": "integration",
+              "sloc": {
+                "code": 20,
+                "comment": 0,
+                "blank": 6,
+                "total": 26
+              },
+              "tokens_cl100k": 133,
+              "bytes": 569
+            }
+          ],
+          "sloc": {
+            "code": 550,
+            "comment": 20,
+            "blank": 104
+          },
+          "tokens_cl100k": 5203,
+          "tokens_integration_plus_client_cl100k": 3360,
+          "sloc_integration_plus_client": 389,
+          "buckets": {
+            "domain": {
+              "sloc": {
+                "code": 161,
+                "comment": 0,
+                "blank": 29
+              },
+              "tokens_cl100k": 1843,
+              "files": [
+                "official/electric-company-ws/EnergyPriceService.cs",
+                "official/electric-company-ws/BusinessLogic.cs"
+              ]
+            },
+            "integration": {
+              "sloc": {
+                "code": 389,
+                "comment": 20,
+                "blank": 75
+              },
+              "tokens_cl100k": 3360,
+              "files": [
+                "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+                "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+                "official/electric-company-ws/Program.cs",
+                "official/electric-company-ws/Controllers/BillingController.cs",
+                "official/electric-company-ws/Controllers/MeterController.cs",
+                "official/electric-company-ws/Controllers/TariffController.cs",
+                "official/electric-company-ws/Controllers/OutageController.cs",
+                "official/electric-company-ws/Controllers/LoyaltyController.cs",
+                "official/electric-company-ws/Dtos/BillingDtos.cs",
+                "official/electric-company-ws/Dtos/MeterDtos.cs",
+                "official/electric-company-ws/Dtos/TariffDtos.cs",
+                "official/electric-company-ws/Dtos/OutageDtos.cs",
+                "official/electric-company-ws/Dtos/LoyaltyDtos.cs"
+              ]
+            }
+          }
+        },
+        "graftcode": {
+          "name": "Graftcode",
+          "publicSurface": {
+            "note": "EnergyPriceService + unused BusinessLogic in the hosted DLL."
+          },
+          "files": [
+            {
+              "path": "official/electric-company-be/EnergyPriceService.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 16,
+                "comment": 0,
+                "blank": 2,
+                "total": 18
+              },
+              "tokens_cl100k": 98,
+              "bytes": 422
+            },
+            {
+              "path": "official/electric-company-be/BusinessLogic.cs",
+              "bucket": "domain",
+              "sloc": {
+                "code": 153,
+                "comment": 0,
+                "blank": 26,
+                "total": 179
+              },
+              "tokens_cl100k": 1807,
+              "bytes": 6981,
+              "disclaimer": "Compiled into EnergyPriceService.dll and may be exported by gg; not called by EnergyPriceService or perf-lab."
+            }
+          ],
+          "sloc": {
+            "code": 169,
+            "comment": 0,
+            "blank": 28
+          },
+          "tokens_cl100k": 1905,
+          "tokens_integration_plus_client_cl100k": 0,
+          "sloc_integration_plus_client": 0,
+          "buckets": {
+            "domain": {
+              "sloc": {
+                "code": 169,
+                "comment": 0,
+                "blank": 28
+              },
+              "tokens_cl100k": 1905,
+              "files": [
+                "official/electric-company-be/EnergyPriceService.cs",
+                "official/electric-company-be/BusinessLogic.cs"
+              ]
+            }
+          }
+        },
+        "grpc": {
+          "name": "gRPC",
+          "n_a": true,
+          "reason": "Demo implements only PriceService RPCs; no billing/meter/tariff/outage/loyalty."
+        }
+      },
+      "reductions": {
+        "rest_to_graftcode": {
+          "sloc_total": 69.3,
+          "tokens_total_cl100k": 63.4
+        }
+      }
+    }
+  }
+}
