@@ -6,5 +6,4 @@ public class EnergyPriceService
     {
         return new Random().Next(1, 999);
     }
-
 }
