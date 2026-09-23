@@ -485,17 +485,6 @@ function App() {
             integration code than REST and {codeSlice.reductions.grpc_to_graftcode.sloc_integration_plus_client}% less than gRPC
           </strong>
         </div>
-
-        <div className="metrics-footnote">
-          <p>
-            Integration glue only (controllers, DTOs, <code>.proto</code>, hand-written clients):{' '}
-            {codeRows.map((row, i) => (
-              <span key={row.key}>
-                {i > 0 ? ' · ' : ''}{row.name} {row.glueSloc} SLOC
-              </span>
-            ))}. Graftcode has no integration server — the gateway hosts the class library, so only the facade and the call site are hand-written.
-          </p>
-        </div>
       </section>
     </div>
   )
