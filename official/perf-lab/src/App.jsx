@@ -4,6 +4,12 @@ import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService
 import { Button, Checkbox, Select } from '@graftcode/design-system'
 import { callGrpcGetPrice, callGrpcGetPriceHistory, streamGrpcPrices } from './grpcClient'
 import locMetrics from './metrics/loc-comparison.json'
+import metricsDocUrl from './metrics/METRICS.md?url'
+import measureScriptSource from '../../../scripts/measure-integration-metrics.mjs?raw'
+
+const measureScriptUrl = URL.createObjectURL(
+  new Blob([measureScriptSource], { type: 'text/plain;charset=utf-8' }),
+)
 
 // Static counts, measured once by scripts/measure-integration-metrics.mjs over the
 // same getPrice/getPriceHistory path the benchmark above calls at runtime.
@@ -484,6 +490,25 @@ function App() {
             Graftcode needs {codeSlice.reductions.rest_to_graftcode.sloc_integration_plus_client}% less
             integration code than REST and {codeSlice.reductions.grpc_to_graftcode.sloc_integration_plus_client}% less than gRPC
           </strong>
+        </div>
+
+        <div className="metrics-footnote">
+          <p>
+            Static one-shot measurement of the same <code>getPrice</code> / <code>getPriceHistory</code> path
+            (this table is not recomputed when you run the comparison). SLOC is a custom cloc-style scan of
+            committed source — <code>//</code> and <code>/* */</code> comments and blank lines excluded.
+            AI tokens are <code>js-tiktoken</code> <strong>cl100k_base</strong> on those same files: a proxy for
+            handwritten integration code, not tokens from a live agent session. Graftcode AI rules are not
+            added. Generated clients, <code>protoc</code> C#, <code>gg</code> / Kestrel binaries,{' '}
+            <code>node_modules</code>, and <code>BusinessLogic.cs</code> (unused by this lab) are not counted.
+          </p>
+          <p>
+            Captured {new Date(locMetrics.measuredAt).toISOString().slice(0, 10)} at git{' '}
+            <code>{String(locMetrics.gitSha).slice(0, 7)}</code>.{' '}
+            <a href={metricsDocUrl} target="_blank" rel="noopener noreferrer">Methodology (METRICS.md)</a>
+            {' · '}
+            <a href={measureScriptUrl} download="measure-integration-metrics.mjs" target="_blank" rel="noopener noreferrer">Measurement script</a>
+          </p>
         </div>
       </section>
     </div>

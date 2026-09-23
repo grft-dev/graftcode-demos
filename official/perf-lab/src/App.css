@@ -350,6 +350,10 @@
   margin-bottom: 0;
 }
 
+.metrics-footnote a {
+  color: #9d174d;
+}
+
 @media (max-width: 720px) {
   .payload-header {
     flex-direction: column;
