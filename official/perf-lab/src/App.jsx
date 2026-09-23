@@ -4,12 +4,11 @@ import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService
 import { Button, Checkbox, Select } from '@graftcode/design-system'
 import { callGrpcGetPrice, callGrpcGetPriceHistory, streamGrpcPrices } from './grpcClient'
 import locMetrics from './metrics/loc-comparison.json'
-import metricsDocUrl from './metrics/METRICS.md?url'
-import measureScriptSource from '../../../scripts/measure-integration-metrics.mjs?raw'
 
-const measureScriptUrl = URL.createObjectURL(
-  new Blob([measureScriptSource], { type: 'text/plain;charset=utf-8' }),
-)
+const metricsDocUrl =
+  'https://github.com/grft-dev/graftcode-demos/blob/main/official/perf-lab/src/metrics/METRICS.md'
+const measureScriptUrl =
+  'https://github.com/grft-dev/graftcode-demos/blob/main/scripts/measure-integration-metrics.mjs'
 
 // Static counts, measured once by scripts/measure-integration-metrics.mjs over the
 // same getPrice/getPriceHistory path the benchmark above calls at runtime.
@@ -507,7 +506,7 @@ function App() {
             <code>{String(locMetrics.gitSha).slice(0, 7)}</code>.{' '}
             <a href={metricsDocUrl} target="_blank" rel="noopener noreferrer">Methodology (METRICS.md)</a>
             {' · '}
-            <a href={measureScriptUrl} download="measure-integration-metrics.mjs" target="_blank" rel="noopener noreferrer">Measurement script</a>
+            <a href={measureScriptUrl} target="_blank" rel="noopener noreferrer">Measurement script</a>
           </p>
         </div>
       </section>
