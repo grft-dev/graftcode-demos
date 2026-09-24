@@ -8,7 +8,7 @@ React/Vite performance benchmark that measures Graftcode, REST, and gRPC side-by
 
 Fires 1 000 sequential calls on each of the three paths and reports total elapsed time:
 
-- **Graftcode** — direct in-process call (mocked locally; no network hop)
+- **Graftcode** — remote Hypertube call through the Graftcode gateway (WSS by default, or HTTPS/h2 when `VITE_GRAFT_TRANSPORT=h2`); same .NET runtime as REST/gRPC. The Vite `stubs/graft.js` alias is a local UI mock only — it is **not** the column measured on GitHub Pages or Azure.
 - **REST** — `fetch` → .NET Kestrel → JSON response over HTTP/2
 - **gRPC** — ConnectRPC → .NET Kestrel → protobuf response over HTTP/2
 
@@ -19,8 +19,9 @@ One call returning N prices as a `double[]` (configurable: 1 k – 50 k). Compar
 - REST JSON (one response, decoded with `JSON.parse`)
 - gRPC unary (one protobuf response, decoded by `@bufbuild/protobuf`)
 - gRPC server-streaming (wrapped doubles stream over one HTTP/2 stream)
+- Graftcode Hypertube (one remote call through the gateway)
 
-Both backends are .NET 8 / Kestrel so the runtime is identical — only wire format and protocol differ.
+All three paths hit the same .NET 8 / Kestrel runtime — only wire format and protocol differ.
 
 ### Cloud Cost Savings calculator
 

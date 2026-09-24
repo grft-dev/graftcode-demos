@@ -176,7 +176,8 @@ function App() {
       await streamGrpcPrices(grpcBase, payloadCount)
       setGrpcStreamMs(round1(performance.now() - t))
 
-      // Graftcode: static method over Vite TLS → gateway h2c `/h2`.
+      // Graftcode: remote Hypertube call via GraftConfig.host (WSS by default,
+      // or HTTPS/h2 when VITE_GRAFT_TRANSPORT=h2).
       setGraftBaselineMs(await measureBaseline(() => EnergyPriceService.getPrice()))
       t = performance.now()
       const graftPoints = await EnergyPriceService.getPriceHistory(payloadCount)
@@ -265,7 +266,7 @@ function App() {
 
       <header className="hero">
         <h1>Graftcode vs REST and gRPC Performance Lab</h1>
-        <p>Measure integration performance: Graftcode (no integration layer) versus REST/JSON and gRPC/protobuf — both backed by the same .NET runtime on HTTP/2.</p>
+        <p>Measure three remote paths to the same .NET runtime: REST/JSON, gRPC/protobuf, and Graftcode through the gateway (WSS, or HTTPS/h2 when configured).</p>
       </header>
 
       <section className="price-section">
@@ -289,7 +290,7 @@ function App() {
         <div className="payload-header">
           <div>
             <h2>Large Payload &amp; Streaming</h2>
-            <p>One request returning the same array of prices. REST uses HTTP/2+JSON, gRPC uses HTTP/2+protobuf, and Graftcode uses a direct method call (no API layer).</p>
+            <p>One request returning the same array of prices. REST uses HTTP/2+JSON, gRPC uses HTTP/2+protobuf, and Graftcode is a remote Hypertube call through the gateway (WSS by default, or HTTPS/h2 when VITE_GRAFT_TRANSPORT=h2).</p>
           </div>
           <div className="latency-controls">
             <div className="latency-row">
@@ -331,7 +332,7 @@ function App() {
           <div>{formatPayloadResult('REST (JSON)', restHistoryMs, restHistoryKb, restBaselineMs)}</div>
           <div>{formatPayloadResult('gRPC unary (protobuf)', grpcHistoryMs, null, grpcBaselineMs)}</div>
           <div>{formatPayloadResult('gRPC stream (protobuf)', grpcStreamMs, null, grpcBaselineMs)}</div>
-          <div>{formatPayloadResult('Graftcode (direct call)', graftHistoryMs, null, graftBaselineMs)}</div>
+          <div>{formatPayloadResult('Graftcode (Hypertube)', graftHistoryMs, null, graftBaselineMs)}</div>
         </div>
 
         {(restHistoryMs !== null && grpcHistoryMs !== null && grpcStreamMs !== null && graftHistoryMs !== null) && (() => {

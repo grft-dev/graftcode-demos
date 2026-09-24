@@ -10,11 +10,11 @@ Runs 1 000 back-to-back calls across three paths and plots the results:
 
 | Path | Runtime | Protocol |
 |------|---------|---------|
-| **Graftcode** | in-process (mocked locally) | direct / no network |
+| **Graftcode** | .NET 8 / Graftcode gateway | Hypertube over WSS (default) or HTTPS/h2 |
 | **REST** | .NET 8 / Kestrel | HTTP/2 + JSON |
 | **gRPC** | .NET 8 / Kestrel + ASP.NET Core gRPC-Web | HTTP/2 + protobuf |
 
-Also includes a **Large Payload & Streaming** section that sends one call returning thousands of `PricePoint` records and compares REST (JSON) vs gRPC unary (protobuf) vs gRPC server-streaming — so you can see the payload-size and decode trade-offs on a real network.
+Also includes a **Large Payload & Streaming** section that sends one call returning thousands of prices and compares REST (JSON), gRPC unary (protobuf), gRPC server-streaming, and Graftcode (Hypertube through the gateway) — three remote paths to the same .NET runtime.
 
 ### Community demos
 
