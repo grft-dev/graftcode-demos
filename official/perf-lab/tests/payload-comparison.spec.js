@@ -22,6 +22,10 @@ test.describe('perf-lab 1.3', () => {
   test('Exclude Network Latency is on by default', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('checkbox', { name: 'Exclude Network Latency' })).toBeChecked()
+    await page.getByRole('button', { name: 'Why it matters?' }).click()
+    const popup = page.locator('.explanation-popup')
+    await expect(popup).toContainText(/shared RTT/i)
+    await expect(popup).not.toContainText('80%')
   })
 
   for (const count of [1000, 20000, 50000]) {
@@ -42,6 +46,12 @@ test.describe('perf-lab 1.3', () => {
       expect(stream).toBeGreaterThan(0)
       expect(graft).toBeGreaterThan(0)
       expect(summary).toMatch(/KB/)
+      expect(summary).toMatch(/shared RTT/)
+
+      const callout = page.locator('.payload-callout')
+      await expect(callout).toContainText(/Graftcode/)
+      await expect(callout).toContainText(/REST/)
+      await expect(callout).toContainText(/unary/i)
 
       await page.locator('#integration-tech-select').selectOption('gRPC')
       const cost = page.locator('.cost-results')

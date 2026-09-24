@@ -25,6 +25,39 @@ const codeRows = ['rest', 'grpc', 'graftcode'].map((key) => {
 })
 const codeBaseline = codeRows.find((row) => row.key === 'graftcode')
 
+function round1(ms) {
+  return Math.round(ms * 10) / 10
+}
+
+function payloadSpeedCallout({ graft, unary, rest, stream }) {
+  if ([graft, unary, rest, stream].some((v) => v == null || v <= 0)) return null
+
+  const vsRestPct = ((rest - graft) / rest) * 100
+  const restClause = vsRestPct >= 0
+    ? `${vsRestPct.toFixed(1)}% faster than REST`
+    : `${Math.abs(vsRestPct).toFixed(1)}% slower than REST`
+
+  const relUnary = Math.abs(graft - unary) / unary
+  let unaryClause
+  if (relUnary <= 0.1) {
+    unaryClause = 'comparable to gRPC unary'
+  } else if (graft > unary) {
+    unaryClause = `${round1(graft - unary)} ms behind gRPC unary`
+  } else {
+    unaryClause = `${round1(unary - graft)} ms ahead of gRPC unary`
+  }
+
+  const streamDelta = round1(Math.abs(stream - graft))
+  const streamNote = graft < stream
+    ? `gRPC server-streaming is a different pattern (one message per point); Graftcode was ${streamDelta} ms faster on this run.`
+    : `gRPC server-streaming is a different pattern (one message per point); it was ${streamDelta} ms faster on this run.`
+
+  return {
+    headline: `Graftcode is ${restClause} and ${unaryClause}.`,
+    streamNote,
+  }
+}
+
 function App() {
   const currencyOptions = [
     { type: 'item', value: 'EUR', label: 'EUR' },
@@ -112,8 +145,6 @@ function App() {
     }
   }
 
-  const round1 = (ms) => Math.round(ms * 10) / 10
-
   // Per-request overhead of one channel, measured with a call that returns a
   // single value. The first call is discarded because it also pays for the
   // TLS/WebSocket handshake, which is not a per-request cost.
@@ -128,16 +159,21 @@ function App() {
     return round1(best)
   }
 
-  const msForTech = (tech) => {
-    if (tech === 'REST') return adjustForLatency(restHistoryMs, restBaselineMs)
-    if (tech === 'gRPC') return adjustForLatency(grpcHistoryMs, grpcBaselineMs)
-    if (tech === 'Graftcode') return adjustForLatency(graftHistoryMs, graftBaselineMs)
-    return null
+  const sharedRttMs =
+    restBaselineMs != null && grpcBaselineMs != null && graftBaselineMs != null
+      ? Math.min(restBaselineMs, grpcBaselineMs, graftBaselineMs)
+      : null
+
+  const adjustForLatency = (time) => {
+    if (!excludeNetworkLatency || time === null || sharedRttMs === null) return time
+    return round1(Math.max(0, time - sharedRttMs))
   }
 
-  const adjustForLatency = (time, baselineMs) => {
-    if (!excludeNetworkLatency || time === null || baselineMs === null) return time
-    return round1(Math.max(0, time - baselineMs))
+  const msForTech = (tech) => {
+    if (tech === 'REST') return adjustForLatency(restHistoryMs)
+    if (tech === 'gRPC') return adjustForLatency(grpcHistoryMs)
+    if (tech === 'Graftcode') return adjustForLatency(graftHistoryMs)
+    return null
   }
 
   const runPayloadComparison = async () => {
@@ -242,15 +278,21 @@ function App() {
     return { timeSavedPerRequestMs: timeSavedMs, totalTimeSavedHours, annualCostSavings, instanceType, targetName, currentMs, targetMs }
   }
 
-  const formatPayloadResult = (label, ms, kb, baselineMs) => {
+  const formatPayloadResult = (label, ms, kb, channelPingMs) => {
     if (ms === null) return <span>{label}: <span className="muted">—</span></span>
-    const adj = adjustForLatency(ms, baselineMs)
+    const adj = adjustForLatency(ms)
     return (
       <span>
         {label}: <strong>{adj} ms</strong>
         {kb != null ? ` (${kb} KB)` : ''}
-        {excludeNetworkLatency && baselineMs !== null && (
-          <span className="latency-breakdown"> ({ms} ms − {baselineMs} ms network)</span>
+        {excludeNetworkLatency && sharedRttMs !== null && (
+          <span className="latency-breakdown">
+            {' '}({ms} ms − {sharedRttMs} ms shared RTT
+            {channelPingMs != null && channelPingMs !== sharedRttMs
+              ? `; channel ${channelPingMs} ms`
+              : ''}
+            )
+          </span>
         )}
       </span>
     )
@@ -336,19 +378,17 @@ function App() {
         </div>
 
         {(restHistoryMs !== null && grpcHistoryMs !== null && grpcStreamMs !== null && graftHistoryMs !== null) && (() => {
-          const results = [
-            { name: 'REST', ms: adjustForLatency(restHistoryMs, restBaselineMs) },
-            { name: 'gRPC unary', ms: adjustForLatency(grpcHistoryMs, grpcBaselineMs) },
-            { name: 'gRPC stream', ms: adjustForLatency(grpcStreamMs, grpcBaselineMs) },
-            { name: 'Graftcode', ms: adjustForLatency(graftHistoryMs, graftBaselineMs) },
-          ]
-          const fastest = results.reduce((a, b) => a.ms < b.ms ? a : b)
-          const slowest = results.reduce((a, b) => a.ms > b.ms ? a : b)
-          if (slowest.ms <= 0) return null
-          const pct = (((slowest.ms - fastest.ms) / slowest.ms) * 100).toFixed(1)
+          const copy = payloadSpeedCallout({
+            graft: adjustForLatency(graftHistoryMs),
+            unary: adjustForLatency(grpcHistoryMs),
+            rest: adjustForLatency(restHistoryMs),
+            stream: adjustForLatency(grpcStreamMs),
+          })
+          if (!copy) return null
           return (
-            <div className="callout">
-              <strong>{fastest.name} is {pct}% faster than {slowest.name}</strong>
+            <div className="callout payload-callout">
+              <strong>{copy.headline}</strong>
+              <p>{copy.streamNote}</p>
             </div>
           )
         })()}
@@ -361,10 +401,10 @@ function App() {
               <strong>Why Excluding Network Latency Matters:</strong>
             </p>
             <p>
-              Both REST and gRPC requests travel the same network path, so each carries the same round-trip overhead. To isolate the actual encoding/transfer difference between JSON and protobuf, we subtract the estimated shared network overhead from both results.
+              Each path has its own ping. Subtracting a per-channel baseline would punish the fastest ping (often Graftcode) and inflate its “processing” time relative to REST and gRPC.
             </p>
             <p>
-              The estimate is 80% of the fastest observed result — a conservative proxy for the per-request RTT contribution. The higher the network latency, the more it masks the real format/protocol difference.
+              Instead we subtract one <strong>shared RTT</strong> from every result: the shortest measured <code>getPrice</code> ping across the three channels. That isolates payload cost without changing rank order. Raw time and the shared RTT are shown next to each row; a higher channel ping is informational only.
             </p>
             <Button
               variant="secondary"
