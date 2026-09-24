@@ -14,11 +14,11 @@ Fires 1 000 sequential calls on each of the three paths and reports total elapse
 
 ### Large Payload & Streaming
 
-One call returning N price points (configurable: 1 k – 50 k). Compares:
+One call returning N prices as a `double[]` (configurable: 1 k – 50 k). Compares:
 
 - REST JSON (one response, decoded with `JSON.parse`)
 - gRPC unary (one protobuf response, decoded by `@bufbuild/protobuf`)
-- gRPC server-streaming (points stream in over one HTTP/2 stream)
+- gRPC server-streaming (wrapped doubles stream over one HTTP/2 stream)
 
 Both backends are .NET 8 / Kestrel so the runtime is identical — only wire format and protocol differ.
 

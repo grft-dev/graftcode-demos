@@ -253,17 +253,15 @@ const restSliceFiles = [
   fileEntry('official/electric-company-ws/Controllers/EnergyPriceController.cs', 'integration', {
     meta: { publicMembers: countPublicMembers(read('official/electric-company-ws/Controllers/EnergyPriceController.cs'), 'csharp') },
   }),
-  fileEntry('official/electric-company-ws/Dtos/PriceHistoryDtos.cs', 'integration'),
   fileEntry('official/electric-company-ws/Program.cs', 'integration', {
     meta: { note: 'Entire Kestrel/TLS/CORS/Swagger host counted as handwritten integration.' },
   }),
   fileEntry('official/perf-lab/src/App.jsx', 'client', {
     source: extractLines('official/perf-lab/src/App.jsx', [
-      [134, 134],
-      [137, 146],
+      [158, 166],
     ]),
     meta: {
-      excerpt: 'App.jsx lines 134, 137–146 (REST fetch + JSON.parse). Lab harness (performance.now, setState) left in because it wraps the fetch.',
+      excerpt: 'App.jsx lines 158–166 (REST fetch + JSON.parse). Lab harness (performance.now, setState) left in because it wraps the fetch.',
     },
   }),
 ]
@@ -292,12 +290,12 @@ const graftSliceFiles = [
   fileEntry('official/perf-lab/src/App.jsx', 'client', {
     source: extractLines('official/perf-lab/src/App.jsx', [
       [3, 3],
-      [66, 83],
-      [85, 92],
-      [160, 163],
+      [87, 104],
+      [106, 113],
+      [180, 184],
     ]),
     meta: {
-      excerpt: 'App.jsx lines 3 (import), 66–83 (GraftConfig), 85–92 (getPrice), 160–163 (getPriceHistory). No handwritten integration server — gg hosts the DLL.',
+      excerpt: 'App.jsx lines 3 (import), 87–104 (GraftConfig), 106–113 (getPrice), 180–184 (getPriceHistory). No handwritten integration server — gg hosts the DLL.',
     },
   }),
 ]
@@ -366,7 +364,7 @@ const locComparison = {
       stacks: sliceStacks,
       reductions: pairReductions(sliceStacks),
       notes: [
-        'Graftcode GetPriceHistory returns double[]; REST and gRPC return PricePoint records.',
+        'GetPriceHistory returns the same double[] payload through Graftcode, REST, and gRPC.',
         'gg / Kestrel binaries are not counted. Generated protoc C# under obj/ is not counted.',
         'Graftcode integration (server) SLOC is 0 because the gateway hosts the class library; only the facade is handwritten.',
       ],
@@ -440,14 +438,14 @@ Perf-lab only calls \`getPrice\` / \`getPriceHistory\`.
 | Bucket | REST | gRPC | Graftcode |
 | --- | --- | --- | --- |
 | Domain + facade | \`electric-company-ws/EnergyPriceService.cs\` | \`PriceServiceImpl.cs\` (inline RNG; includes StreamPrices) | \`electric-company-be/EnergyPriceService.cs\` |
-| Integration (server) | \`EnergyPriceController\`, \`PriceHistoryDtos\`, \`Program.cs\` | \`price.proto\`, \`Program.cs\` | none (\`gg\` hosts the DLL; binary not counted) |
-| Client | \`App.jsx\` REST fetch excerpt (lines 134, 137–146) | \`priceProto.js\` + \`grpcClient.js\` | \`App.jsx\` import + GraftConfig + calls (lines 3, 66–83, 85–92, 160–163) |
+| Integration (server) | \`EnergyPriceController\`, \`Program.cs\` | \`price.proto\`, \`Program.cs\` | none (\`gg\` hosts the DLL; binary not counted) |
+| Client | \`App.jsx\` REST fetch excerpt (lines 158–166) | \`priceProto.js\` + \`grpcClient.js\` | \`App.jsx\` import + GraftConfig + calls (lines 3, 87–104, 106–113, 180–184) |
 
 **Not counted:** \`node_modules\`, \`obj/\`, \`.graftcode/\`, generated Graft client, generated \`protoc\` C#, \`gg\` / Kestrel binaries, Dockerfiles, Playwright, comments, blanks.
 
 **Not in the headline:** [\`official/electric-company-be/BusinessLogic.cs\`](../../../electric-company-be/BusinessLogic.cs). It is compiled into the hosted DLL and *may* be exported by the gateway, but \`EnergyPriceService\` and perf-lab never call it. REST billing controllers use a copy of that logic; the lab does not hit those endpoints. gRPC has no \`BusinessLogic\` file.
 
-**Shape caveat:** Graftcode \`GetPriceHistory\` returns \`double[]\`; REST and gRPC return \`PricePoint\` records.
+**Payload shape:** \`GetPriceHistory\` returns the same \`double[]\` through Graftcode, REST, and gRPC.
 
 **gRPC extra:** \`StreamPrices\` has no REST/Graftcode counterpart. It is included in the gRPC column and called out, not subtracted.
 

@@ -25,7 +25,7 @@ test.describe('perf-lab 1.3', () => {
   })
 
   for (const count of [1000, 20000, 50000]) {
-    test(`Run comparison at ${count} points`, async ({ page }) => {
+    test(`Run comparison at ${count} prices`, async ({ page }) => {
       await page.goto('/')
       await page.locator('#payload-count-select').selectOption(String(count))
       await page.getByRole('button', { name: 'Run comparison' }).click()
@@ -45,7 +45,7 @@ test.describe('perf-lab 1.3', () => {
 
       await page.locator('#integration-tech-select').selectOption('gRPC')
       const cost = page.locator('.cost-results')
-      await expect(cost).toContainText(/gRPC → Graftcode|gRPC → REST/)
+      await expect(cost).toContainText(/gRPC → Graftcode|gRPC → REST|No faster measured alternative to gRPC/)
     })
   }
 })

@@ -19,13 +19,19 @@ Thumbs.db
 # Local TLS certificates (for HTTP/2 demo)
 certs/
 
-# .NET
-bin/
-obj/
+# .NET / MSBuild artefacts (keep binaries out of git)
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
 *.dll
 *.exe
 *.pdb
 *.cache
+*.nupkg
+*.snupkg
 publish/
 *.nuget.props
 *.nuget.g.props

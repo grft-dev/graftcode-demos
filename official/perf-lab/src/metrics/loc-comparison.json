@@ -1,6 +1,6 @@
 {
-  "measuredAt": "2026-09-23T11:08:23.427Z",
-  "gitSha": "ac9b795a007075e1305f0f0e0f49963fa3f2508c",
+  "measuredAt": "2026-09-24T10:06:33.434Z",
+  "gitSha": "c7e6190a3ede123cef72b6c1de661d193da7847e",
   "tool": {
     "sloc": "custom cloc-style scanner in scripts/measure-integration-metrics.mjs (code vs // and /* */ comments vs blank; strings preserved)",
     "tokens": "js-tiktoken cl100k_base (OpenAI-compatible). Proxy on committed source — not a live agent session."
@@ -43,13 +43,13 @@
               "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
               "bucket": "integration",
               "sloc": {
-                "code": 41,
+                "code": 27,
                 "comment": 2,
-                "blank": 4,
-                "total": 47
+                "blank": 3,
+                "total": 32
               },
-              "tokens_cl100k": 334,
-              "bytes": 1619,
+              "tokens_cl100k": 217,
+              "bytes": 996,
               "publicMembers": {
                 "kind": "method",
                 "names": [
@@ -58,18 +58,6 @@
                 ],
                 "count": 2
               }
-            },
-            {
-              "path": "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
-              "bucket": "integration",
-              "sloc": {
-                "code": 12,
-                "comment": 2,
-                "blank": 1,
-                "total": 15
-              },
-              "tokens_cl100k": 135,
-              "bytes": 546
             },
             {
               "path": "official/electric-company-ws/Program.cs",
@@ -88,24 +76,24 @@
               "path": "official/perf-lab/src/App.jsx",
               "bucket": "client",
               "sloc": {
-                "code": 9,
-                "comment": 2,
-                "blank": 1,
-                "total": 12
+                "code": 8,
+                "comment": 1,
+                "blank": 0,
+                "total": 9
               },
-              "tokens_cl100k": 166,
-              "bytes": 692,
-              "excerpt": "App.jsx lines 134, 137–146 (REST fetch + JSON.parse). Lab harness (performance.now, setState) left in because it wraps the fetch."
+              "tokens_cl100k": 128,
+              "bytes": 539,
+              "excerpt": "App.jsx lines 158–166 (REST fetch + JSON.parse). Lab harness (performance.now, setState) left in because it wraps the fetch."
             }
           ],
           "sloc": {
-            "code": 130,
-            "comment": 22,
-            "blank": 21
+            "code": 103,
+            "comment": 19,
+            "blank": 18
           },
-          "tokens_cl100k": 1357,
-          "tokens_integration_plus_client_cl100k": 1321,
-          "sloc_integration_plus_client": 122,
+          "tokens_cl100k": 1067,
+          "tokens_integration_plus_client_cl100k": 1031,
+          "sloc_integration_plus_client": 95,
           "buckets": {
             "domain": {
               "sloc": {
@@ -120,24 +108,23 @@
             },
             "integration": {
               "sloc": {
-                "code": 113,
-                "comment": 20,
-                "blank": 19
+                "code": 87,
+                "comment": 18,
+                "blank": 17
               },
-              "tokens_cl100k": 1155,
+              "tokens_cl100k": 903,
               "files": [
                 "official/electric-company-ws/Controllers/EnergyPriceController.cs",
-                "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
                 "official/electric-company-ws/Program.cs"
               ]
             },
             "client": {
               "sloc": {
-                "code": 9,
-                "comment": 2,
-                "blank": 1
+                "code": 8,
+                "comment": 1,
+                "blank": 0
               },
-              "tokens_cl100k": 166,
+              "tokens_cl100k": 128,
               "files": [
                 "official/perf-lab/src/App.jsx"
               ]
@@ -160,13 +147,13 @@
               "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
               "bucket": "domain",
               "sloc": {
-                "code": 49,
+                "code": 34,
                 "comment": 4,
-                "blank": 7,
-                "total": 60
+                "blank": 5,
+                "total": 43
               },
-              "tokens_cl100k": 486,
-              "bytes": 2227,
+              "tokens_cl100k": 359,
+              "bytes": 1673,
               "publicMembers": {
                 "kind": "method",
                 "names": [],
@@ -178,13 +165,13 @@
               "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
               "bucket": "integration",
               "sloc": {
-                "code": 31,
-                "comment": 6,
+                "code": 24,
+                "comment": 5,
                 "blank": 11,
-                "total": 48
+                "total": 40
               },
-              "tokens_cl100k": 301,
-              "bytes": 1271,
+              "tokens_cl100k": 227,
+              "bytes": 1021,
               "publicMembers": {
                 "kind": "rpc",
                 "names": [
@@ -211,13 +198,13 @@
               "path": "official/perf-lab/src/priceProto.js",
               "bucket": "client",
               "sloc": {
-                "code": 47,
+                "code": 40,
                 "comment": 3,
                 "blank": 7,
-                "total": 57
+                "total": 50
               },
-              "tokens_cl100k": 610,
-              "bytes": 2275
+              "tokens_cl100k": 447,
+              "bytes": 1805
             },
             {
               "path": "official/perf-lab/src/grpcClient.js",
@@ -228,8 +215,8 @@
                 "blank": 4,
                 "total": 35
               },
-              "tokens_cl100k": 304,
-              "bytes": 1308,
+              "tokens_cl100k": 301,
+              "bytes": 1296,
               "publicMembers": {
                 "kind": "function",
                 "names": [
@@ -242,32 +229,32 @@
             }
           ],
           "sloc": {
-            "code": 197,
-            "comment": 26,
-            "blank": 38
+            "code": 168,
+            "comment": 25,
+            "blank": 36
           },
-          "tokens_cl100k": 2263,
-          "tokens_integration_plus_client_cl100k": 1777,
-          "sloc_integration_plus_client": 148,
+          "tokens_cl100k": 1896,
+          "tokens_integration_plus_client_cl100k": 1537,
+          "sloc_integration_plus_client": 134,
           "buckets": {
             "domain": {
               "sloc": {
-                "code": 49,
+                "code": 34,
                 "comment": 4,
-                "blank": 7
+                "blank": 5
               },
-              "tokens_cl100k": 486,
+              "tokens_cl100k": 359,
               "files": [
                 "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs"
               ]
             },
             "integration": {
               "sloc": {
-                "code": 75,
-                "comment": 14,
+                "code": 68,
+                "comment": 13,
                 "blank": 20
               },
-              "tokens_cl100k": 863,
+              "tokens_cl100k": 789,
               "files": [
                 "official/grpc-energy-price-dotnet/Protos/price.proto",
                 "official/grpc-energy-price-dotnet/Program.cs"
@@ -275,11 +262,11 @@
             },
             "client": {
               "sloc": {
-                "code": 73,
+                "code": 66,
                 "comment": 8,
                 "blank": 11
               },
-              "tokens_cl100k": 914,
+              "tokens_cl100k": 748,
               "files": [
                 "official/perf-lab/src/priceProto.js",
                 "official/perf-lab/src/grpcClient.js"
@@ -321,24 +308,24 @@
               "path": "official/perf-lab/src/App.jsx",
               "bucket": "client",
               "sloc": {
-                "code": 27,
+                "code": 28,
                 "comment": 4,
                 "blank": 3,
-                "total": 34
+                "total": 35
               },
-              "tokens_cl100k": 364,
-              "bytes": 1434,
-              "excerpt": "App.jsx lines 3 (import), 66–83 (GraftConfig), 85–92 (getPrice), 160–163 (getPriceHistory). No handwritten integration server — gg hosts the DLL."
+              "tokens_cl100k": 380,
+              "bytes": 1489,
+              "excerpt": "App.jsx lines 3 (import), 87–104 (GraftConfig), 106–113 (getPrice), 180–184 (getPriceHistory). No handwritten integration server — gg hosts the DLL."
             }
           ],
           "sloc": {
-            "code": 43,
+            "code": 44,
             "comment": 4,
             "blank": 5
           },
-          "tokens_cl100k": 462,
-          "tokens_integration_plus_client_cl100k": 364,
-          "sloc_integration_plus_client": 27,
+          "tokens_cl100k": 478,
+          "tokens_integration_plus_client_cl100k": 380,
+          "sloc_integration_plus_client": 28,
           "buckets": {
             "domain": {
               "sloc": {
@@ -353,11 +340,11 @@
             },
             "client": {
               "sloc": {
-                "code": 27,
+                "code": 28,
                 "comment": 4,
                 "blank": 3
               },
-              "tokens_cl100k": 364,
+              "tokens_cl100k": 380,
               "files": [
                 "official/perf-lab/src/App.jsx"
               ]
@@ -367,44 +354,44 @@
       },
       "reductions": {
         "rest_to_grpc": {
-          "sloc_total": -51.5,
-          "sloc_integration_plus_client": -21.3,
-          "tokens_total_cl100k": -66.8,
-          "tokens_integration_plus_client_cl100k": -34.5
+          "sloc_total": -63.1,
+          "sloc_integration_plus_client": -41.1,
+          "tokens_total_cl100k": -77.7,
+          "tokens_integration_plus_client_cl100k": -49.1
         },
         "rest_to_graftcode": {
-          "sloc_total": 66.9,
-          "sloc_integration_plus_client": 77.9,
-          "tokens_total_cl100k": 66,
-          "tokens_integration_plus_client_cl100k": 72.4
+          "sloc_total": 57.3,
+          "sloc_integration_plus_client": 70.5,
+          "tokens_total_cl100k": 55.2,
+          "tokens_integration_plus_client_cl100k": 63.1
         },
         "grpc_to_rest": {
-          "sloc_total": 34,
-          "sloc_integration_plus_client": 17.6,
-          "tokens_total_cl100k": 40,
-          "tokens_integration_plus_client_cl100k": 25.7
+          "sloc_total": 38.7,
+          "sloc_integration_plus_client": 29.1,
+          "tokens_total_cl100k": 43.7,
+          "tokens_integration_plus_client_cl100k": 32.9
         },
         "grpc_to_graftcode": {
-          "sloc_total": 78.2,
-          "sloc_integration_plus_client": 81.8,
-          "tokens_total_cl100k": 79.6,
-          "tokens_integration_plus_client_cl100k": 79.5
+          "sloc_total": 73.8,
+          "sloc_integration_plus_client": 79.1,
+          "tokens_total_cl100k": 74.8,
+          "tokens_integration_plus_client_cl100k": 75.3
         },
         "graftcode_to_rest": {
-          "sloc_total": -202.3,
-          "sloc_integration_plus_client": -351.9,
-          "tokens_total_cl100k": -193.7,
-          "tokens_integration_plus_client_cl100k": -262.9
+          "sloc_total": -134.1,
+          "sloc_integration_plus_client": -239.3,
+          "tokens_total_cl100k": -123.2,
+          "tokens_integration_plus_client_cl100k": -171.3
         },
         "graftcode_to_grpc": {
-          "sloc_total": -358.1,
-          "sloc_integration_plus_client": -448.1,
-          "tokens_total_cl100k": -389.8,
-          "tokens_integration_plus_client_cl100k": -388.2
+          "sloc_total": -281.8,
+          "sloc_integration_plus_client": -378.6,
+          "tokens_total_cl100k": -296.7,
+          "tokens_integration_plus_client_cl100k": -304.5
         }
       },
       "notes": [
-        "Graftcode GetPriceHistory returns double[]; REST and gRPC return PricePoint records.",
+        "GetPriceHistory returns the same double[] payload through Graftcode, REST, and gRPC.",
         "gg / Kestrel binaries are not counted. Generated protoc C# under obj/ is not counted.",
         "Graftcode integration (server) SLOC is 0 because the gateway hosts the class library; only the facade is handwritten."
       ]
@@ -442,13 +429,13 @@
               "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
               "bucket": "integration",
               "sloc": {
-                "code": 41,
+                "code": 27,
                 "comment": 2,
-                "blank": 4,
-                "total": 47
+                "blank": 3,
+                "total": 32
               },
-              "tokens_cl100k": 334,
-              "bytes": 1619,
+              "tokens_cl100k": 217,
+              "bytes": 996,
               "publicMembers": {
                 "kind": "method",
                 "names": [
@@ -457,18 +444,6 @@
                 ],
                 "count": 2
               }
-            },
-            {
-              "path": "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
-              "bucket": "integration",
-              "sloc": {
-                "code": 12,
-                "comment": 2,
-                "blank": 1,
-                "total": 15
-              },
-              "tokens_cl100k": 135,
-              "bytes": 546
             },
             {
               "path": "official/electric-company-ws/Program.cs",
@@ -617,13 +592,13 @@
             }
           ],
           "sloc": {
-            "code": 550,
-            "comment": 20,
-            "blank": 104
+            "code": 524,
+            "comment": 18,
+            "blank": 102
           },
-          "tokens_cl100k": 5203,
-          "tokens_integration_plus_client_cl100k": 3360,
-          "sloc_integration_plus_client": 389,
+          "tokens_cl100k": 4951,
+          "tokens_integration_plus_client_cl100k": 3108,
+          "sloc_integration_plus_client": 363,
           "buckets": {
             "domain": {
               "sloc": {
@@ -639,14 +614,13 @@
             },
             "integration": {
               "sloc": {
-                "code": 389,
-                "comment": 20,
-                "blank": 75
+                "code": 363,
+                "comment": 18,
+                "blank": 73
               },
-              "tokens_cl100k": 3360,
+              "tokens_cl100k": 3108,
               "files": [
                 "official/electric-company-ws/Controllers/EnergyPriceController.cs",
-                "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
                 "official/electric-company-ws/Program.cs",
                 "official/electric-company-ws/Controllers/BillingController.cs",
                 "official/electric-company-ws/Controllers/MeterController.cs",
@@ -725,8 +699,8 @@
       },
       "reductions": {
         "rest_to_graftcode": {
-          "sloc_total": 69.3,
-          "tokens_total_cl100k": 63.4
+          "sloc_total": 67.7,
+          "tokens_total_cl100k": 61.5
         }
       }
     }

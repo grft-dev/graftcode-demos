@@ -9,15 +9,8 @@ export const GetPriceResponse = proto3.makeMessageType('energyprice.GetPriceResp
   { no: 1, name: 'price', kind: 'scalar', T: ScalarType.DOUBLE },
 ])
 
-export const PricePoint = proto3.makeMessageType('energyprice.PricePoint', [
-  { no: 1, name: 'timestamp', kind: 'scalar', T: ScalarType.INT64 },
-  { no: 2, name: 'price', kind: 'scalar', T: ScalarType.DOUBLE },
-  { no: 3, name: 'low', kind: 'scalar', T: ScalarType.DOUBLE },
-  { no: 4, name: 'high', kind: 'scalar', T: ScalarType.DOUBLE },
-  { no: 5, name: 'average', kind: 'scalar', T: ScalarType.DOUBLE },
-  { no: 6, name: 'currency', kind: 'scalar', T: ScalarType.STRING },
-  { no: 7, name: 'region', kind: 'scalar', T: ScalarType.STRING },
-  { no: 8, name: 'source', kind: 'scalar', T: ScalarType.STRING },
+export const PriceValue = proto3.makeMessageType('energyprice.PriceValue', [
+  { no: 1, name: 'value', kind: 'scalar', T: ScalarType.DOUBLE },
 ])
 
 export const GetPriceHistoryRequest = proto3.makeMessageType('energyprice.GetPriceHistoryRequest', [
@@ -25,7 +18,7 @@ export const GetPriceHistoryRequest = proto3.makeMessageType('energyprice.GetPri
 ])
 
 export const GetPriceHistoryResponse = proto3.makeMessageType('energyprice.GetPriceHistoryResponse', [
-  { no: 1, name: 'points', kind: 'message', T: PricePoint, repeated: true },
+  { no: 1, name: 'prices', kind: 'scalar', T: ScalarType.DOUBLE, repeated: true },
 ])
 
 export const StreamPricesRequest = proto3.makeMessageType('energyprice.StreamPricesRequest', [
@@ -50,7 +43,7 @@ export const PriceService = {
     streamPrices: {
       name: 'StreamPrices',
       I: StreamPricesRequest,
-      O: PricePoint,
+      O: PriceValue,
       kind: MethodKind.ServerStreaming,
     },
   },

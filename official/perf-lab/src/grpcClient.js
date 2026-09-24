@@ -19,16 +19,16 @@ export async function callGrpcGetPrice(baseUrl) {
   await getClient(baseUrl).getPrice({})
 }
 
-// Large payload: one unary call returning `count` price points.
+// Large payload: one unary call returning `count` prices.
 export async function callGrpcGetPriceHistory(baseUrl, count) {
   const res = await getClient(baseUrl).getPriceHistory({ count })
-  return res.points?.length ?? 0
+  return res.prices?.length ?? 0
 }
 
-// Server streaming: receive `count` points one at a time over one HTTP/2 stream.
+// Server streaming: receive `count` wrapped prices over one HTTP/2 stream.
 export async function streamGrpcPrices(baseUrl, count) {
   let received = 0
-  for await (const _point of getClient(baseUrl).streamPrices({ count })) {
+  for await (const _price of getClient(baseUrl).streamPrices({ count })) {
     received += 1
   }
   return received

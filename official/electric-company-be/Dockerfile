@@ -21,4 +21,4 @@ RUN mkdir -p /usr/app \
 
 COPY --from=build /app/publish/ /usr/app/
 
-CMD ["gg", "--runtime", "netcore", "--modules", "/usr/app/EnergyPriceService.dll", "--port", "81", "--httpPort", "5001"]
+CMD ["gg", "--runtime", "netcore", "--modules", "/usr/app/EnergyPriceService.dll", "--port", "5001", "--httpPort", "81"]

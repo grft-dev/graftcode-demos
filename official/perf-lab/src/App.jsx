@@ -55,10 +55,10 @@ function App() {
   ]
 
   const payloadCountOptions = [
-    { type: 'item', value: '1000', label: '1,000 points' },
-    { type: 'item', value: '5000', label: '5,000 points' },
-    { type: 'item', value: '20000', label: '20,000 points' },
-    { type: 'item', value: '50000', label: '50,000 points' },
+    { type: 'item', value: '1000', label: '1,000 prices' },
+    { type: 'item', value: '5000', label: '5,000 prices' },
+    { type: 'item', value: '20000', label: '20,000 prices' },
+    { type: 'item', value: '50000', label: '50,000 prices' },
   ]
 
   const [currency, setCurrency] = useState('EUR')
@@ -155,8 +155,7 @@ function App() {
       const restHost = import.meta.env.VITE_REST_URL || 'https://localhost:8090'
       const grpcBase = import.meta.env.VITE_GRPC_URL || 'https://localhost:5005'
 
-      // REST: one GET returning a big JSON array. Parse into objects so it's
-      // apples-to-apples with gRPC/Graftcode (which decode into objects).
+      // REST: one GET returning a JSON array of prices, matching gRPC/Graftcode.
       setRestBaselineMs(await measureBaseline(() => fetch(`${restHost}/api/EnergyPrice/price`).then(r => r.text())))
       let t = performance.now()
       const resp = await fetch(`${restHost}/api/EnergyPrice/history?count=${payloadCount}`)
@@ -166,13 +165,13 @@ function App() {
       setRestHistoryMs(round1(performance.now() - t))
       setRestHistoryKb(Math.round(text.length / 1024))
 
-      // gRPC unary: one call returning a repeated protobuf message (decoded to objects).
+      // gRPC unary: one call returning packed repeated doubles.
       setGrpcBaselineMs(await measureBaseline(() => callGrpcGetPrice(grpcBase)))
       t = performance.now()
       await callGrpcGetPriceHistory(grpcBase, payloadCount)
       setGrpcHistoryMs(round1(performance.now() - t))
 
-      // gRPC server-streaming: same count of points, one message at a time on one HTTP/2 stream.
+      // gRPC server-streaming: same count of prices, one wrapped double per message.
       t = performance.now()
       await streamGrpcPrices(grpcBase, payloadCount)
       setGrpcStreamMs(round1(performance.now() - t))
@@ -290,7 +289,7 @@ function App() {
         <div className="payload-header">
           <div>
             <h2>Large Payload &amp; Streaming</h2>
-            <p>One request returning many price points. All three call the same .NET logic — REST via HTTP/2+JSON, gRPC via HTTP/2+protobuf, Graftcode via direct method call (no API layer).</p>
+            <p>One request returning the same array of prices. REST uses HTTP/2+JSON, gRPC uses HTTP/2+protobuf, and Graftcode uses a direct method call (no API layer).</p>
           </div>
           <div className="latency-controls">
             <div className="latency-row">
@@ -414,9 +413,15 @@ function App() {
         {(() => {
           const savings = calculateCostSavings()
           if (!savings) {
+            const hasPayloadResults =
+              restHistoryMs !== null && grpcHistoryMs !== null && graftHistoryMs !== null
             return (
               <div className="cost-results">
-                <p className="muted">Run the payload comparison above to see cost savings calculations.</p>
+                <p className="muted">
+                  {hasPayloadResults
+                    ? `No faster measured alternative to ${integrationTech}.`
+                    : 'Run the payload comparison above to see cost savings calculations.'}
+                </p>
               </div>
             )
           }
