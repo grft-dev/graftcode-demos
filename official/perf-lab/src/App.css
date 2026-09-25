@@ -135,9 +135,9 @@
 .callout {
   margin-top: .25rem;
   padding: .75rem 1rem;
-  background: #fdf2f8;
-  border: 1px solid #f0abcf;
-  color: #831843;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #047857;
   border-radius: 10px;
   text-align: center;
 }
@@ -330,8 +330,8 @@
 }
 
 .metrics-table .winner td {
-  background: #fdf2f8;
-  color: #9d174d;
+  background: #ecfdf5;
+  color: #047857;
   font-weight: 700;
 }
 
