@@ -1,0 +1,44 @@
+# Perf-lab backends (graftcode-demos). Pairs with official/perf-lab frontend.
+#
+# From official/:
+#   docker compose -f docker-compose.perf-lab.yml up -d --build
+#
+# Host ports for official/perf-lab/.env.local:
+#   REST :8090   gRPC :5005   Graft WS :5000 / h2c :5001
+
+services:
+  rest-energy:
+    build:
+      context: ./electric-company-ws
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8080"
+
+  grpc-energy:
+    build:
+      context: ./grpc-energy-price-dotnet
+      dockerfile: Dockerfile
+    ports:
+      - "5005:8080"
+
+  graft-gateway:
+    build:
+      context: ./electric-company-be
+      dockerfile: Dockerfile
+      args:
+        GG_VERSION: v1.4.7
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    command:
+      [
+        "gg",
+        "--runtime",
+        "netcore",
+        "--modules",
+        "/usr/app/EnergyPriceService.dll",
+        "--port",
+        "5000",
+        "--httpPort",
+        "5001",
+      ]

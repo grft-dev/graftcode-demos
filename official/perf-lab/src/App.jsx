@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import { GraftConfig, EnergyPriceService } from '@graft/nuget-EnergyPriceService'
+import { GraftConfig, EnergyPriceService } from '@graft/nuget-energypriceservice'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
-import { callGrpcGetPrice, callGrpcGetPriceHistory, streamGrpcPrices } from './grpcClient'
+import { callGrpcGetPrice, streamGrpcPrices } from './grpcClient'
+import {
+  applyGraftConfigHost,
+  HTTP_BACKEND_MODE_OPTIONS,
+  isHttpBackendSwitchAvailable,
+  loadHttpBackendMode,
+  resolveHttpBackendGrpcUrl,
+  resolveHttpBackendRestUrl,
+  saveHttpBackendMode,
+} from './httpBackendConfig'
 import locMetrics from './metrics/loc-comparison.json'
 
 const metricsDocUrl =
@@ -24,6 +33,82 @@ const codeRows = ['rest', 'grpc', 'graftcode'].map((key) => {
   }
 })
 const codeBaseline = codeRows.find((row) => row.key === 'graftcode')
+
+const BENCHMARK_PATH_ORDER = ['rest', 'grpcUnary', 'grpcStream', 'graftcode']
+
+const BENCHMARK_PATH_META = {
+  rest: { label: 'REST (JSON)' },
+  grpcUnary: { label: 'gRPC unary (protobuf)' },
+  grpcStream: { label: 'gRPC stream (protobuf)' },
+  graftcode: { label: 'Graftcode' },
+}
+
+function createIdleBenchmarkPaths(total = 0) {
+  return Object.fromEntries(
+    BENCHMARK_PATH_ORDER.map((key) => [key, { phase: 'idle', current: 0, total }])
+  )
+}
+
+const BENCHMARK_PHASE_LABEL = {
+  idle: 'Waiting',
+  pending: 'Queued',
+  baseline: 'Measuring RTT…',
+  running: 'Running',
+  done: 'Done',
+  error: 'Failed',
+}
+
+function pctDelta(fasterMs, slowerMs) {
+  if (fasterMs == null || slowerMs == null || slowerMs <= 0) return null
+  return Math.round(((slowerMs - fasterMs) / slowerMs) * 1000) / 10
+}
+
+function GraftcodeSpeedSummary({ results, contextNote }) {
+  const graft = results.find((r) => r.name === 'Graftcode')
+  if (!graft || graft.ms == null || graft.ms <= 0) return null
+
+  const others = results.filter((r) => r.name !== 'Graftcode' && r.ms != null && r.ms > 0)
+  if (!others.length) return null
+
+  return (
+    <div className="speed-summary">
+      <h3 className="speed-summary-title">How Graftcode compares</h3>
+      {contextNote ? <p className="speed-summary-note">{contextNote}</p> : null}
+      <p className="speed-summary-anchor">
+        Graftcode baseline: <strong>{graft.ms} ms</strong> per call
+      </p>
+      <ul className="speed-summary-list">
+        {others.map((other) => {
+          const graftFaster = graft.ms < other.ms
+          const pct = graftFaster
+            ? pctDelta(graft.ms, other.ms)
+            : pctDelta(other.ms, graft.ms)
+          if (pct == null) return null
+          return (
+            <li
+              key={other.name}
+              className={`speed-summary-row ${graftFaster ? 'speed-summary-row--faster' : 'speed-summary-row--slower'}`}
+            >
+              <span className="speed-summary-tech">{other.name}</span>
+              <span className="speed-summary-ms">{other.ms} ms/call</span>
+              <span className="speed-summary-verdict">
+                {graftFaster ? (
+                  <>
+                    Graftcode <strong>{pct}%</strong> faster
+                  </>
+                ) : (
+                  <>
+                    Graftcode <strong>{pct}%</strong> slower
+                  </>
+                )}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
 
 function App() {
   const currencyOptions = [
@@ -54,11 +139,11 @@ function App() {
     { type: 'item', value: 'Graftcode', label: 'Graftcode' },
   ]
 
-  const payloadCountOptions = [
-    { type: 'item', value: '1000', label: '1,000 points' },
-    { type: 'item', value: '5000', label: '5,000 points' },
-    { type: 'item', value: '20000', label: '20,000 points' },
-    { type: 'item', value: '50000', label: '50,000 points' },
+  const benchmarkCountOptions = [
+    { type: 'item', value: '100', label: '100 calls' },
+    { type: 'item', value: '500', label: '500 calls' },
+    { type: 'item', value: '1000', label: '1,000 calls' },
+    { type: 'item', value: '5000', label: '5,000 calls' },
   ]
 
   const [currency, setCurrency] = useState('EUR')
@@ -68,40 +153,43 @@ function App() {
   const [excludeNetworkLatency, setExcludeNetworkLatency] = useState(true)
   const [showLatencyExplanation, setShowLatencyExplanation] = useState(false)
 
-  const [payloadCount, setPayloadCount] = useState(5000)
-  const [isRunningPayload, setIsRunningPayload] = useState(false)
-  const [payloadError, setPayloadError] = useState(null)
-  const [restHistoryMs, setRestHistoryMs] = useState(null)
-  const [restHistoryKb, setRestHistoryKb] = useState(null)
-  const [grpcHistoryMs, setGrpcHistoryMs] = useState(null)
-  const [grpcStreamMs, setGrpcStreamMs] = useState(null)
-  const [graftHistoryMs, setGraftHistoryMs] = useState(null)
-  const [restBaselineMs, setRestBaselineMs] = useState(null)
-  const [grpcBaselineMs, setGrpcBaselineMs] = useState(null)
-  const [graftBaselineMs, setGraftBaselineMs] = useState(null)
+  const [benchmarkCount, setBenchmarkCount] = useState(1000)
+  const [benchmarkCountUsed, setBenchmarkCountUsed] = useState(null)
+  const [isRunningBenchmark, setIsRunningBenchmark] = useState(false)
+  const [benchmarkError, setBenchmarkError] = useState(null)
+  const [benchmarkPaths, setBenchmarkPaths] = useState(() => createIdleBenchmarkPaths())
+  const [restManyTotalMs, setRestManyTotalMs] = useState(null)
+  const [grpcManyTotalMs, setGrpcManyTotalMs] = useState(null)
+  const [grpcStreamManyTotalMs, setGrpcStreamManyTotalMs] = useState(null)
+  const [graftManyTotalMs, setGraftManyTotalMs] = useState(null)
+  const [restManyBaselineMs, setRestManyBaselineMs] = useState(null)
+  const [grpcManyBaselineMs, setGrpcManyBaselineMs] = useState(null)
+  const [grpcStreamManyBaselineMs, setGrpcStreamManyBaselineMs] = useState(null)
+  const [graftManyBaselineMs, setGraftManyBaselineMs] = useState(null)
 
   const [rps, setRps] = useState(200000)
   const [cloudProvider, setCloudProvider] = useState('Azure')
   const [integrationTech, setIntegrationTech] = useState('REST')
 
+  const httpBackendSwitchVisible = isHttpBackendSwitchAvailable()
+  const [httpBackendMode, setHttpBackendMode] = useState(() => loadHttpBackendMode())
+  const restBaseUrl = resolveHttpBackendRestUrl(httpBackendMode)
+  const grpcBaseUrl = resolveHttpBackendGrpcUrl(httpBackendMode)
+
+  const onHttpBackendModeChange = (value) => {
+    setHttpBackendMode(value)
+    saveHttpBackendMode(value)
+  }
+
   useEffect(() => {
     try {
-      const h2Path = import.meta.env.VITE_GRAFT_H2_PATH ?? '/graft/h2'
-      // gg 1.4.6 RST_STREAMs Node http2 POST /h2 (PROTOCOL_ERROR) — same as the
-      // official hypertube Node client. Browser HTTP/2 still goes through the
-      // Vite h2c plugin when VITE_GRAFT_TRANSPORT=h2. Default is same-origin
-      // WSS → gg WebSocket so HTTPS pages are not mixed-content blocked.
-      if (import.meta.env.VITE_GRAFT_TRANSPORT === 'h2') {
-        GraftConfig.host = `${window.location.origin}${h2Path}`
-      } else {
-        const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-        GraftConfig.host = import.meta.env.VITE_GRAFT_WS_URL || `${wsProto}://${window.location.host}/graft-ws`
-      }
+      GraftConfig.host = applyGraftConfigHost(httpBackendMode)
       GraftConfig.stateless = true
+      setGraftError(null)
     } catch (err) {
       setGraftError(err?.message || 'Failed to initialize GraftConfig')
     }
-  }, [])
+  }, [httpBackendMode])
 
   const getEnergyPrice = async () => {
     try {
@@ -128,65 +216,142 @@ function App() {
     return round1(best)
   }
 
-  const msForTech = (tech) => {
-    if (tech === 'REST') return adjustForLatency(restHistoryMs, restBaselineMs)
-    if (tech === 'gRPC') return adjustForLatency(grpcHistoryMs, grpcBaselineMs)
-    if (tech === 'Graftcode') return adjustForLatency(graftHistoryMs, graftBaselineMs)
-    return null
-  }
-
   const adjustForLatency = (time, baselineMs) => {
     if (!excludeNetworkLatency || time === null || baselineMs === null) return time
     return round1(Math.max(0, time - baselineMs))
   }
 
-  const runPayloadComparison = async () => {
-    setIsRunningPayload(true)
-    setPayloadError(null)
-    setRestHistoryMs(null)
-    setRestHistoryKb(null)
-    setGrpcHistoryMs(null)
-    setGrpcStreamMs(null)
-    setGraftHistoryMs(null)
-    setRestBaselineMs(null)
-    setGrpcBaselineMs(null)
-    setGraftBaselineMs(null)
+  // One baseline RTT subtracted from the whole run (not × call count): connections
+  // are reused, so per-call average is already lower than an isolated probe call.
+  const adjustSequentialRunTotal = (totalMs, baselineMs) => {
+    if (totalMs === null) return null
+    if (!excludeNetworkLatency || baselineMs === null) return round1(totalMs)
+    return round1(Math.max(0, totalMs - baselineMs))
+  }
+
+  const perRequestMsFromSequentialRun = (totalMs, baselineMs, count) => {
+    const adjTotal = adjustSequentialRunTotal(totalMs, baselineMs)
+    if (adjTotal === null || !count) return null
+    return round1(adjTotal / count)
+  }
+
+  const msForTech = (tech) => {
+    const count = benchmarkCountUsed
+    if (
+      !count ||
+      restManyTotalMs === null ||
+      grpcManyTotalMs === null ||
+      grpcStreamManyTotalMs === null ||
+      graftManyTotalMs === null
+    ) {
+      return null
+    }
+    if (tech === 'REST') return perRequestMsFromSequentialRun(restManyTotalMs, restManyBaselineMs, count)
+    if (tech === 'gRPC') return perRequestMsFromSequentialRun(grpcManyTotalMs, grpcManyBaselineMs, count)
+    if (tech === 'Graftcode') return perRequestMsFromSequentialRun(graftManyTotalMs, graftManyBaselineMs, count)
+    return null
+  }
+
+  const patchBenchmarkPath = (key, patch) => {
+    setBenchmarkPaths((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }))
+  }
+
+  const runSequentialCalls = async (count, callFn, onProgress) => {
+    await callFn()
+    const t0 = performance.now()
+    const step = count <= 100 ? 1 : count <= 500 ? 5 : 25
+    for (let i = 0; i < count; i++) {
+      await callFn()
+      if (onProgress && (i === count - 1 || (i + 1) % step === 0)) {
+        onProgress(i + 1)
+      }
+    }
+    return round1(performance.now() - t0)
+  }
+
+  const runManyCallBenchmark = async () => {
+    setIsRunningBenchmark(true)
+    setBenchmarkError(null)
+    setBenchmarkCountUsed(null)
+    setRestManyTotalMs(null)
+    setGrpcManyTotalMs(null)
+    setGrpcStreamManyTotalMs(null)
+    setGraftManyTotalMs(null)
+    setRestManyBaselineMs(null)
+    setGrpcManyBaselineMs(null)
+    setGrpcStreamManyBaselineMs(null)
+    setGraftManyBaselineMs(null)
+    const count = benchmarkCount
+    setBenchmarkPaths(
+      Object.fromEntries(
+        BENCHMARK_PATH_ORDER.map((key) => [key, { phase: 'pending', current: 0, total: count }])
+      )
+    )
     try {
-      const restHost = import.meta.env.VITE_REST_URL || 'https://localhost:8090'
-      const grpcBase = import.meta.env.VITE_GRPC_URL || 'https://localhost:5005'
+      const restHost = restBaseUrl
+      const grpcBase = grpcBaseUrl
 
-      // REST: one GET returning a big JSON array. Parse into objects so it's
-      // apples-to-apples with gRPC/Graftcode (which decode into objects).
-      setRestBaselineMs(await measureBaseline(() => fetch(`${restHost}/api/EnergyPrice/price`).then(r => r.text())))
-      let t = performance.now()
-      const resp = await fetch(`${restHost}/api/EnergyPrice/history?count=${payloadCount}`)
-      const text = await resp.text()
-      const restPoints = JSON.parse(text)
-      void restPoints.length
-      setRestHistoryMs(round1(performance.now() - t))
-      setRestHistoryKb(Math.round(text.length / 1024))
+      const restCall = async () => {
+        const r = await fetch(`${restHost}/api/EnergyPrice/price`)
+        if (!r.ok) throw new Error(`REST failed (${r.status})`)
+        await r.json()
+      }
+      patchBenchmarkPath('rest', { phase: 'baseline' })
+      setRestManyBaselineMs(await measureBaseline(restCall))
+      patchBenchmarkPath('rest', { phase: 'running', current: 0 })
+      setRestManyTotalMs(
+        await runSequentialCalls(count, restCall, (n) => patchBenchmarkPath('rest', { current: n }))
+      )
+      patchBenchmarkPath('rest', { phase: 'done', current: count })
 
-      // gRPC unary: one call returning a repeated protobuf message (decoded to objects).
-      setGrpcBaselineMs(await measureBaseline(() => callGrpcGetPrice(grpcBase)))
-      t = performance.now()
-      await callGrpcGetPriceHistory(grpcBase, payloadCount)
-      setGrpcHistoryMs(round1(performance.now() - t))
+      const grpcCall = async () => {
+        await callGrpcGetPrice(grpcBase)
+      }
+      patchBenchmarkPath('grpcUnary', { phase: 'baseline' })
+      setGrpcManyBaselineMs(await measureBaseline(grpcCall))
+      patchBenchmarkPath('grpcUnary', { phase: 'running', current: 0 })
+      setGrpcManyTotalMs(
+        await runSequentialCalls(count, grpcCall, (n) => patchBenchmarkPath('grpcUnary', { current: n }))
+      )
+      patchBenchmarkPath('grpcUnary', { phase: 'done', current: count })
 
-      // gRPC server-streaming: same count of points, one message at a time on one HTTP/2 stream.
-      t = performance.now()
-      await streamGrpcPrices(grpcBase, payloadCount)
-      setGrpcStreamMs(round1(performance.now() - t))
+      const grpcStreamCall = async () => {
+        await streamGrpcPrices(grpcBase, 1)
+      }
+      patchBenchmarkPath('grpcStream', { phase: 'baseline' })
+      setGrpcStreamManyBaselineMs(await measureBaseline(grpcStreamCall))
+      patchBenchmarkPath('grpcStream', { phase: 'running', current: 0 })
+      setGrpcStreamManyTotalMs(
+        await runSequentialCalls(count, grpcStreamCall, (n) => patchBenchmarkPath('grpcStream', { current: n }))
+      )
+      patchBenchmarkPath('grpcStream', { phase: 'done', current: count })
 
-      // Graftcode: static method over Vite TLS → gateway h2c `/h2`.
-      setGraftBaselineMs(await measureBaseline(() => EnergyPriceService.getPrice()))
-      t = performance.now()
-      const graftPoints = await EnergyPriceService.getPriceHistory(payloadCount)
-      void graftPoints.length
-      setGraftHistoryMs(round1(performance.now() - t))
+      const graftCall = async () => {
+        await EnergyPriceService.getPrice()
+      }
+      patchBenchmarkPath('graftcode', { phase: 'baseline' })
+      setGraftManyBaselineMs(await measureBaseline(graftCall))
+      patchBenchmarkPath('graftcode', { phase: 'running', current: 0 })
+      setGraftManyTotalMs(
+        await runSequentialCalls(count, graftCall, (n) => patchBenchmarkPath('graftcode', { current: n }))
+      )
+      patchBenchmarkPath('graftcode', { phase: 'done', current: count })
+      setBenchmarkCountUsed(count)
     } catch (err) {
-      setPayloadError(err?.message || 'Request failed — are the backends running?')
+      setBenchmarkError(err?.message || 'Benchmark failed — are the backends running?')
+      setBenchmarkPaths((prev) => {
+        const next = { ...prev }
+        for (const key of BENCHMARK_PATH_ORDER) {
+          const p = next[key]
+          if (p.phase === 'baseline' || p.phase === 'running') {
+            next[key] = { ...p, phase: 'error' }
+            break
+          }
+        }
+        return next
+      })
     } finally {
-      setIsRunningPayload(false)
+      setIsRunningBenchmark(false)
     }
   }
 
@@ -242,19 +407,49 @@ function App() {
     return { timeSavedPerRequestMs: timeSavedMs, totalTimeSavedHours, annualCostSavings, instanceType, targetName, currentMs, targetMs }
   }
 
-  const formatPayloadResult = (label, ms, kb, baselineMs) => {
-    if (ms === null) return <span>{label}: <span className="muted">—</span></span>
-    const adj = adjustForLatency(ms, baselineMs)
+  const formatManyCallStats = (totalMs, baselineMs, count) => {
+    if (totalMs === null || !count) {
+      return <span className="muted">—</span>
+    }
+    const perReq = round1(totalMs / count)
+    const adjTotal = adjustSequentialRunTotal(totalMs, baselineMs)
+    const adjPerReq = perRequestMsFromSequentialRun(totalMs, baselineMs, count)
     return (
-      <span>
-        {label}: <strong>{adj} ms</strong>
-        {kb != null ? ` (${kb} KB)` : ''}
+      <span className="benchmark-path-stats">
+        <span className="benchmark-path-stats-main">
+          <strong>{adjTotal} ms</strong> total · <strong>{adjPerReq} ms</strong>/call
+        </span>
         {excludeNetworkLatency && baselineMs !== null && (
-          <span className="latency-breakdown"> ({ms} ms − {baselineMs} ms network)</span>
+          <span className="latency-breakdown benchmark-path-stats-detail">
+            raw {totalMs} ms · {perReq} ms/call; −{baselineMs} ms setup
+          </span>
         )}
       </span>
     )
   }
+
+  const benchmarkPathResults = {
+    rest: { totalMs: restManyTotalMs, baselineMs: restManyBaselineMs },
+    grpcUnary: { totalMs: grpcManyTotalMs, baselineMs: grpcManyBaselineMs },
+    grpcStream: { totalMs: grpcStreamManyTotalMs, baselineMs: grpcStreamManyBaselineMs },
+    graftcode: { totalMs: graftManyTotalMs, baselineMs: graftManyBaselineMs },
+  }
+
+  const benchmarkPathBarPercent = (path) => {
+    const { phase, current, total } = path
+    if (phase === 'done') return 100
+    if (phase === 'baseline') return 8
+    if (phase === 'running' && total > 0) return Math.min(100, Math.round((current / total) * 100))
+    if (phase === 'error') return 100
+    return 0
+  }
+
+  const hasManyCallResults =
+    benchmarkCountUsed !== null &&
+    restManyTotalMs !== null &&
+    grpcManyTotalMs !== null &&
+    grpcStreamManyTotalMs !== null &&
+    graftManyTotalMs !== null
 
   return (
     <div className="perf-app">
@@ -286,21 +481,46 @@ function App() {
         </div>
       </section>
 
-      <section className="payload-comparison">
-        <div className="payload-header">
-          <div>
-            <h2>Large Payload &amp; Streaming</h2>
-            <p>One request returning many price points. All three call the same .NET logic — REST via HTTP/2+JSON, gRPC via HTTP/2+protobuf, Graftcode via direct method call (no API layer).</p>
-          </div>
-          <div className="latency-controls">
-            <div className="latency-row">
-              <Checkbox
-                id="exclude-network-latency"
-                checked={excludeNetworkLatency}
-                onChange={(next) => setExcludeNetworkLatency(next === true)}
-                label="Exclude Network Latency"
-              />
-            </div>
+      <section className="payload-comparison many-call-benchmark" aria-labelledby="many-call-heading">
+        <header className="benchmark-intro">
+          <h2 id="many-call-heading">Sequential call benchmark</h2>
+          <p>
+            Many sequential <code>getPrice</code> calls per integration path (REST → gRPC unary → gRPC stream
+            → Graftcode). Streaming uses one <code>PricePoint</code> per call so it stays comparable to unary.
+          </p>
+        </header>
+
+        <div className="benchmark-toolbar">
+          {httpBackendSwitchVisible ? (
+            <Select
+              id="http-backend-mode-benchmark"
+              label="HTTP version:"
+              value={httpBackendMode}
+              options={HTTP_BACKEND_MODE_OPTIONS}
+              onValueChange={onHttpBackendModeChange}
+            />
+          ) : null}
+          <Select
+            id="benchmark-count-select"
+            label="Calls per path:"
+            value={String(benchmarkCount)}
+            options={benchmarkCountOptions}
+            onValueChange={(value) => setBenchmarkCount(Number(value))}
+          />
+          <Button
+            variant="primary"
+            onClick={runManyCallBenchmark}
+            disabled={isRunningBenchmark}
+          >
+            {isRunningBenchmark ? 'Running…' : 'Run benchmark'}
+          </Button>
+          <div className="benchmark-toolbar-options">
+            <Checkbox
+              id="exclude-network-latency"
+              checked={excludeNetworkLatency}
+              onChange={(next) => setExcludeNetworkLatency(next === true)}
+              label="Exclude Network Latency"
+            />
             <Button
               variant="outlined"
               className="info-link"
@@ -311,47 +531,60 @@ function App() {
           </div>
         </div>
 
-        <div className="payload-controls">
-          <Select
-            id="payload-count-select"
-            label="Points per call:"
-            value={String(payloadCount)}
-            options={payloadCountOptions}
-            onValueChange={(value) => setPayloadCount(Number(value))}
-          />
-          <Button variant="primary" onClick={runPayloadComparison} disabled={isRunningPayload}>
-            {isRunningPayload ? 'Running…' : 'Run comparison'}
-          </Button>
-        </div>
-
-        {payloadError && (
-          <div className="payload-error" role="alert">{payloadError}</div>
+        {benchmarkError && (
+          <div className="payload-error" role="alert">{benchmarkError}</div>
         )}
 
-        <div className="summary">
-          <div>{formatPayloadResult('REST (JSON)', restHistoryMs, restHistoryKb, restBaselineMs)}</div>
-          <div>{formatPayloadResult('gRPC unary (protobuf)', grpcHistoryMs, null, grpcBaselineMs)}</div>
-          <div>{formatPayloadResult('gRPC stream (protobuf)', grpcStreamMs, null, grpcBaselineMs)}</div>
-          <div>{formatPayloadResult('Graftcode (direct call)', graftHistoryMs, null, graftBaselineMs)}</div>
-        </div>
+        <ul className="benchmark-path-list benchmark-summary" aria-live="polite">
+          {BENCHMARK_PATH_ORDER.map((key) => {
+            const path = benchmarkPaths[key]
+            const { label } = BENCHMARK_PATH_META[key]
+            const { totalMs, baselineMs } = benchmarkPathResults[key]
+            const count = benchmarkCountUsed ?? path.total
+            const pct = benchmarkPathBarPercent(path)
+            const status =
+              path.phase === 'running'
+                ? `${BENCHMARK_PHASE_LABEL.running} ${path.current}/${path.total}`
+                : BENCHMARK_PHASE_LABEL[path.phase] ?? path.phase
+            return (
+              <li
+                key={key}
+                className={`benchmark-path-card benchmark-path-card--${path.phase}`}
+              >
+                <span className="benchmark-path-name">{label}</span>
+                <div
+                  className="benchmark-path-bar"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={pct}
+                  aria-label={`${label} progress`}
+                >
+                  <div
+                    className="benchmark-path-bar-fill"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="benchmark-path-status">{status}</span>
+                <div className="benchmark-path-result">
+                  {formatManyCallStats(totalMs, baselineMs, count)}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
 
-        {(restHistoryMs !== null && grpcHistoryMs !== null && grpcStreamMs !== null && graftHistoryMs !== null) && (() => {
-          const results = [
-            { name: 'REST', ms: adjustForLatency(restHistoryMs, restBaselineMs) },
-            { name: 'gRPC unary', ms: adjustForLatency(grpcHistoryMs, grpcBaselineMs) },
-            { name: 'gRPC stream', ms: adjustForLatency(grpcStreamMs, grpcBaselineMs) },
-            { name: 'Graftcode', ms: adjustForLatency(graftHistoryMs, graftBaselineMs) },
-          ]
-          const fastest = results.reduce((a, b) => a.ms < b.ms ? a : b)
-          const slowest = results.reduce((a, b) => a.ms > b.ms ? a : b)
-          if (slowest.ms <= 0) return null
-          const pct = (((slowest.ms - fastest.ms) / slowest.ms) * 100).toFixed(1)
-          return (
-            <div className="callout">
-              <strong>{fastest.name} is {pct}% faster than {slowest.name}</strong>
-            </div>
-          )
-        })()}
+        {hasManyCallResults && (
+          <GraftcodeSpeedSummary
+            results={[
+              { name: 'REST', ms: perRequestMsFromSequentialRun(restManyTotalMs, restManyBaselineMs, benchmarkCountUsed) },
+              { name: 'gRPC unary', ms: perRequestMsFromSequentialRun(grpcManyTotalMs, grpcManyBaselineMs, benchmarkCountUsed) },
+              { name: 'gRPC stream', ms: perRequestMsFromSequentialRun(grpcStreamManyTotalMs, grpcStreamManyBaselineMs, benchmarkCountUsed) },
+              { name: 'Graftcode', ms: perRequestMsFromSequentialRun(graftManyTotalMs, graftManyBaselineMs, benchmarkCountUsed) },
+            ]}
+            contextNote={`${benchmarkCountUsed.toLocaleString()} sequential getPrice calls per path${excludeNetworkLatency ? ' (network setup excluded)' : ''}.`}
+          />
+        )}
       </section>
 
       {showLatencyExplanation && (
@@ -361,10 +594,14 @@ function App() {
               <strong>Why Excluding Network Latency Matters:</strong>
             </p>
             <p>
-              Both REST and gRPC requests travel the same network path, so each carries the same round-trip overhead. To isolate the actual encoding/transfer difference between JSON and protobuf, we subtract the estimated shared network overhead from both results.
+              REST, gRPC, and Graftcode requests often share similar network round-trips. To highlight
+              encoding and protocol differences, we measure a single small <code>getPrice</code> call per
+              path.               For the sequential benchmark we subtract that setup time once from each path’s total run.
             </p>
             <p>
-              The estimate is 80% of the fastest observed result — a conservative proxy for the per-request RTT contribution. The higher the network latency, the more it masks the real format/protocol difference.
+              The first call on each path is always discarded during baseline measurement because it also
+              pays connection setup (TLS, WebSocket, HTTP/2). Turn this off to see end-to-end times including
+              network latency.
             </p>
             <Button
               variant="secondary"
@@ -379,13 +616,16 @@ function App() {
 
       <section className="cost-savings">
         <h3>Cloud Cost Savings</h3>
-        <p>Estimate the annual compute savings from switching technologies based on the payload test results and your request volume.</p>
+        <p>
+          Estimate annual compute savings from switching technologies. Uses per-call times from the
+          sequential <code>getPrice</code> benchmark.
+        </p>
 
         <div className="cost-controls">
           <div className="control-group">
             <Select
               id="rps-select"
-              label="Large-payload requests per second (RPS):"
+              label="getPrice requests per second (RPS):"
               value={String(rps)}
               options={rpsOptions}
               onValueChange={(value) => setRps(Number(value))}
@@ -416,7 +656,7 @@ function App() {
           if (!savings) {
             return (
               <div className="cost-results">
-                <p className="muted">Run the payload comparison above to see cost savings calculations.</p>
+                <p className="muted">Run the sequential benchmark to see cost savings.</p>
               </div>
             )
           }

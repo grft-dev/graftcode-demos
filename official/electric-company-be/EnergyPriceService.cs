@@ -1,18 +1,38 @@
-﻿namespace EnergyPriceService;
+﻿using EnergyPriceService.Dtos;
+
+namespace EnergyPriceService;
 
 public class EnergyPriceService
 {
+    private const long MinuteMs = 60_000;
+
     public static double GetPrice()
     {
-        return new Random().Next(1, 998);
+        return Random.Shared.Next(1, 998);
     }
 
-    public static double[] GetPriceHistory(int count)
+    public static PricePointDto[] GetPriceHistory(int count)
     {
-        var rng = new Random();
-        var result = new double[count];
-        for (int i = 0; i < count; i++)
-            result[i] = rng.Next(1, 998);
+        if (count <= 0) count = 1;
+        if (count > 200_000) count = 200_000;
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var result = new PricePointDto[count];
+        for (var i = 0; i < count; i++)
+        {
+            var price = (double)Random.Shared.Next(1, 998);
+            result[i] = new PricePointDto
+            {
+                Timestamp = now - (long)i * MinuteMs,
+                Price = price,
+                Low = price * 0.9,
+                High = price * 1.1,
+                Average = price,
+                Currency = "EUR",
+                Region = "EU-Central",
+                Source = $"grid-meter-{i % 64}",
+            };
+        }
         return result;
     }
 }

@@ -1,9 +1,5 @@
-# Copy to .npmrc and fill in your Graftcode registry details.
-# Do not commit .npmrc — it may contain auth tokens.
-#
-# @graft packages (generated gateway client):
-# @graft:registry=https://grft.dev/YOUR_PROJECT_ID__graftcode
-#
-# @graftcode packages (design system):
-# @graftcode:registry=https://YOUR_PRIVATE_NPM_REGISTRY/
-# //YOUR_PRIVATE_NPM_REGISTRY/:_authToken=${NPM_AUTH_TOKEN}
+# Copy to .npmrc (do not commit tokens).
+# EnergyPriceService 1.3.0 — perf-lab graft client:
+#   npm install @graft/nuget-energypriceservice@1.3.0
+
+@graft:registry=https://grft.dev/6d44e8fa-78dc-4f89-b04f-8f0161172d31__free
