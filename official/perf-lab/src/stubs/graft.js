@@ -25,11 +25,22 @@ export const EnergyPriceService = {
     return Math.floor(Math.random() * 997) + 1
   },
 
-  // Mirrors electric-company-be: EnergyPriceService.GetPriceHistory(count) => double[].
-  // Runs in-process — no serialization, no network round-trip.
   async GetPriceHistory(count) {
+    const now = Date.now()
     const result = new Array(count)
-    for (let i = 0; i < count; i++) result[i] = Math.floor(Math.random() * 997) + 1
+    for (let i = 0; i < count; i++) {
+      const price = Math.floor(Math.random() * 997) + 1
+      result[i] = {
+        timestamp: now - i * 60_000,
+        price,
+        low: price * 0.9,
+        high: price * 1.1,
+        average: price,
+        currency: 'EUR',
+        region: 'EU-Central',
+        source: `grid-meter-${i % 64}`,
+      }
+    }
     return result
   },
 }

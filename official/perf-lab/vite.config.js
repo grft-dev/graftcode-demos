@@ -17,13 +17,19 @@ export default defineConfig({
         ws: true,
         rewrite: () => '/ws',
       },
+      // gRPC-Web (Connect) from the browser — same-origin avoids CORS; backend is HTTP/1.1-capable.
+      '/grpc': {
+        target: 'http://127.0.0.1:5005',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/grpc/, ''),
+      },
     },
     strictPort: true,
     port: 5173,
   },
   resolve: {
     // @graftcode/design-system lives in a private registry — use local stubs.
-    // @graft/nuget-EnergyPriceService is now installed from the Graftcode registry.
+    // @graft/nuget-energypriceservice — Graftcode registry (see .npmrc).
     alias: [
       { find: '@graftcode/design-system/styles.css', replacement: r('./src/stubs/design-system.css') },
       { find: '@graftcode/design-system', replacement: r('./src/stubs/design-system.jsx') },

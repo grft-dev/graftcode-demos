@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:azure": "vite --mode dev",
+    "backends:up": "docker compose -f ../docker-compose.perf-lab.yml up -d --build",
+    "backends:down": "docker compose -f ../docker-compose.perf-lab.yml down",
+    "backends:logs": "docker compose -f ../docker-compose.perf-lab.yml logs -f",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -14,7 +18,7 @@
     "@bufbuild/protobuf": "1.10.0",
     "@connectrpc/connect": "1.6.1",
     "@connectrpc/connect-web": "1.6.1",
-    "@graft/nuget-EnergyPriceService": "^1.2.1",
+    "@graft/nuget-energypriceservice": "1.3.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

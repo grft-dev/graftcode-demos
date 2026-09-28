@@ -10,7 +10,7 @@ Runs 1 000 back-to-back calls across three paths and plots the results:
 
 | Path | Runtime | Protocol |
 |------|---------|---------|
-| **Graftcode** | in-process (mocked locally) | direct / no network |
+| **Graftcode** | gateway → .NET module | WebSocket / Hypertube |
 | **REST** | .NET 8 / Kestrel | HTTP/2 + JSON |
 | **gRPC** | .NET 8 / Kestrel + ASP.NET Core gRPC-Web | HTTP/2 + protobuf |
 
@@ -47,11 +47,12 @@ community/                     External-contributor demos (see CONTRIBUTING.md)
   py-ai-backend/              Python service → MCP server
 
 official/                     Graftcode-team demos (see CONTRIBUTING.md)
-  perf-lab/                   React/Vite frontend (performance benchmark UI)
-  electric-company-ws/        .NET 8 REST backend  (HTTP/2, /api/EnergyPrice/*)
-  grpc-energy-price-dotnet/   .NET 8 gRPC backend  (HTTP/2, ASP.NET Core gRPC-Web)
-  electric-company-be/        Original C# energy-price service (Graftcode host)
-  graftcode-gateway/          Graftcode Gateway container used by the demos above
+  perf-lab/                   Performance lab UI
+  electric-company-ws/        perf-lab REST backend
+  grpc-energy-price-dotnet/   perf-lab gRPC-Web backend
+  electric-company-be/        perf-lab Graftcode host (gg + EnergyPriceService)
+  docker-compose.perf-lab.yml Local Docker stack for the three backends above
+  graftcode-gateway/          Gateway image for deploy-azure.ps1
   sdn-currency-converter/     Python currency-converter demo
   open-telemetry-demo/        Multi-service OpenTelemetry demo
 
@@ -59,48 +60,21 @@ rules/                        Shared AI-assistant rules (see below) — used by 
 deploy-azure.ps1              One-shot Azure Container Apps deploy script
 ```
 
-## Run locally
+## Run locally (perf-lab)
 
-### Prerequisites
+Full stack in **this repo** — see [official/perf-lab/README.md](official/perf-lab/README.md).
 
-- Node 22+
-- .NET 8 SDK
-- [mkcert](https://github.com/FiloSottile/mkcert) (for local HTTPS / HTTP/2)
-
-### 1 — Local TLS certs
-
-```powershell
-mkcert -install
-New-Item -ItemType Directory -Force official/certs
-mkcert -cert-file official/certs/localhost.pem -key-file official/certs/localhost-key.pem localhost 127.0.0.1
-```
-
-### 2 — REST backend
-
-```powershell
-cd official/electric-company-ws
-dotnet run
-# Listening on https://localhost:8090
-```
-
-### 3 — gRPC backend
-
-```powershell
-cd official/grpc-energy-price-dotnet
-dotnet run
-# Listening on https://localhost:5005
-```
-
-### 4 — Frontend
-
-```powershell
+```bash
 cd official/perf-lab
 npm install
+cp .env.local.example .env.local
+npm run backends:up    # Docker: official/electric-company-ws, grpc-energy-price-dotnet, electric-company-be
 npm run dev
-# Open http://localhost:5173
 ```
 
-The `.env` in `official/perf-lab/` already points to `https://localhost:8090` (REST) and `https://localhost:5005` (gRPC). Copy `.env.example` to `.env` if you need to change the URLs.
+Hosted Azure dev backends (deployed from our internal [demos](https://github.com/grft-dev/demos) repo): `npm run dev:azure` (`.env.dev`).
+
+Without Docker: `dotnet run` in each backend folder + mkcert — [HTTP2-SETUP.md](HTTP2-SETUP.md).
 
 ## Deploy to Azure
 

@@ -2,73 +2,93 @@
 
 React/Vite performance benchmark that measures Graftcode, REST, and gRPC side-by-side.
 
+Backend source for this demo lives in **this repo** under `official/`:
+
+| Role | Folder |
+|------|--------|
+| REST | [`electric-company-ws`](../electric-company-ws/) |
+| gRPC-Web | [`grpc-energy-price-dotnet`](../grpc-energy-price-dotnet/) |
+| Graftcode (gg **v1.4.7** in Docker) | [`electric-company-be`](../electric-company-be/) |
+
+The Graftcode team also deploys the same services to Azure from the internal [demos](https://github.com/grft-dev/demos) repo (`demo-ecws`, `demo-grpc`, `demo-ecbe`). Use `.env.dev` when pointing the UI at those hosted URLs only.
+
 ## What it does
 
-### 1 000-call benchmark
+### Sequential call benchmark
 
-Fires 1 000 sequential calls on each of the three paths and reports total elapsed time:
-
-- **Graftcode** — direct in-process call (mocked locally; no network hop)
-- **REST** — `fetch` → .NET Kestrel → JSON response over HTTP/2
-- **gRPC** — ConnectRPC → .NET Kestrel → protobuf response over HTTP/2
-
-### Large Payload & Streaming
-
-One call returning N price points (configurable: 1 k – 50 k). Compares:
-
-- REST JSON (one response, decoded with `JSON.parse`)
-- gRPC unary (one protobuf response, decoded by `@bufbuild/protobuf`)
-- gRPC server-streaming (points stream in over one HTTP/2 stream)
-
-Both backends are .NET 8 / Kestrel so the runtime is identical — only wire format and protocol differ.
+Many sequential `getPrice` calls per path (REST, gRPC unary, gRPC stream, Graftcode) with per-path progress.
 
 ### Cloud Cost Savings calculator
 
-Extrapolates the measured performance difference to an annual cost saving based on your RPS and cloud provider.
+Extrapolates measured per-call time from the sequential benchmark to annual cost savings.
 
 ### Static integration metrics (SLOC / tokens)
 
-Latency is measured live. Lines of code and tokens are **not** — they were counted once from the EnergyPrice call path (REST vs gRPC vs Graftcode). See [src/metrics/METRICS.md](src/metrics/METRICS.md).
+See [src/metrics/METRICS.md](src/metrics/METRICS.md).
 
-The **Code & AI Token Cost** table below the cost calculator renders these frozen numbers by importing `src/metrics/loc-comparison.json`, so re-running the measurement updates the page without touching `App.jsx`:
+## Environment variables
+
+Copy values from [`.env.example`](.env.example) into `.env.local` (local Docker) or `.env.dev` (Azure); only `.env.example` is committed.
+
+| Variable pair | REST | gRPC (browser) | Graftcode |
+|---------------|------|----------------|-----------|
+| `*_HTTP1` | `http://localhost:8090` | `http://localhost:5173/grpc` (Vite → Docker `:5005`) | `ws://localhost:5173/graft-ws` (Vite → gg `:5000/ws`) |
+| `*_HTTP2` | Azure `demo-ecws` HTTPS URL | Azure `demo-grpc` HTTPS URL | Azure `demo-ecbe` `wss://…/ws` |
+
+The in-app **HTTP version** control switches all three stacks together. Choice is stored in `localStorage` (`perf-lab-http-mode`). When HTTP/1 and HTTP/2 URLs are identical (e.g. `npm run dev:azure` with [`.env.dev`](.env.dev)), the picker is hidden.
+
+Legacy fallbacks if pairs are omitted: `VITE_REST_URL`, `VITE_GRPC_URL`, `VITE_GRAFT_WS_URL`.
+
+## Reading the sequential benchmark
+
+- **REST** uses a simple `GET` and small JSON for `getPrice` — often fastest for tiny responses in the browser.
+- **gRPC** in this app is **gRPC-Web** (Connect), not a native gRPC client: extra framing and `POST` overhead show up on small calls.
+- **gRPC stream** with one point per call is mainly for protocol comparison; streaming wins on large payloads (not shown in the UI at the moment).
+- **Graftcode** goes through the gateway and Hypertube protocol (WebSocket), which adds work per call compared to direct HTTP — the trade-off is zero handwritten integration code.
+
+Use **HTTP/2** in the picker to put REST, gRPC, and Graft on the same Azure network path; use **HTTP/1.1** for local Docker + Vite proxies.
+
+## Local development
+
+### Docker (recommended)
+
+From `official/perf-lab`:
 
 ```bash
-cd ../../scripts && npm install && npm run measure
+npm install
+# create .env.local from .env.example (see HTTP/1.1 block)
+npm run backends:up    # builds ../electric-company-ws, ../grpc-energy-price-dotnet, ../electric-company-be
+npm run dev            # http://localhost:5173
 ```
+
+Stop backends: `npm run backends:down`
+
+Graft npm client (**1.3.0**):
+
+```bash
+npm install --registry https://grft.dev/6d44e8fa-78dc-4f89-b04f-8f0161172d31__free @graft/nuget-energypriceservice@1.3.0
+```
+
+(Or copy `.npmrc.example` → `.npmrc` and `npm install`.)
+
+### Azure dev (hosted backends)
+
+```bash
+npm run dev:azure      # loads .env.dev (polandcentral Container Apps)
+```
+
+### Native .NET + mkcert
+
+TLS on `https://localhost:8090` / `:5005` without Docker — [HTTP2-SETUP.md](../../HTTP2-SETUP.md) and [repo README](../../README.md).
 
 ## Project structure
 
 ```
-src/
-  App.jsx          Main UI and benchmark logic
-  grpcClient.js    ConnectRPC client (with HTTP/2 connection caching)
-  priceProto.js    Hand-authored protobuf descriptors (no protoc required)
-  metrics/         Frozen SLOC/token comparison (not computed at runtime — see METRICS.md)
-  stubs/
-    graft.js             Mock for @graft/nuget-EnergyPriceService
-    design-system.jsx    Mock for @graftcode/design-system components
-    design-system.css    Stub styles
-vite.config.js     Aliases that map private packages to local stubs
-Dockerfile         node:22-alpine build → nginx:alpine serve
-nginx.conf         Serves on port 81; proxies /grpc/* on port 5003
+official/perf-lab/     This UI
+../electric-company-ws/   REST
+../grpc-energy-price-dotnet/
+../electric-company-be/
 ```
-
-## Local development
-
-```bash
-npm install
-npm run dev
-```
-
-Requires `.env` with:
-
-```
-VITE_REST_URL=https://localhost:8090
-VITE_GRPC_URL=https://localhost:5005
-VITE_GRAFT_WS_URL=ws://localhost:5000/ws
-```
-
-Copy `.env.example` to `.env` and start the two .NET backends before running the frontend. See the root `README.md` for backend setup instructions.
 
 ## Build
 
@@ -76,18 +96,6 @@ Copy `.env.example` to `.env` and start the two .NET backends before running the
 npm run build
 ```
 
-The Dockerfile is built by `deploy-azure.ps1` via ACR remote build; backend URLs are baked in as `VITE_*` build args.
-
 ## GitHub Pages
 
-The repository workflow `.github/workflows/deploy-perf-lab-pages.yml` builds and deploys this frontend to GitHub Pages when changes land on `main`.
-
-Before the first run, add these **repository variables** under **Settings → Secrets and variables → Actions → Variables**:
-
-```text
-PERF_LAB_REST_URL=https://your-rest-backend.example.com
-PERF_LAB_GRPC_URL=https://your-grpc-backend.example.com
-PERF_LAB_GRAFT_WS_URL=wss://your-graft-gateway.example.com/ws
-```
-
-The backend services must allow requests from the Pages origin with CORS. GitHub Pages cannot proxy WebSocket, REST, or gRPC requests, so these URLs must be publicly reachable over HTTPS/WSS. Enable Pages in **Settings → Pages** with **GitHub Actions** as the source. The deployed site will be available at `https://<owner>.github.io/graftcode-demos/`.
+See `.github/workflows/deploy-perf-lab-pages.yml`. Set GitHub repository variables: `VITE_REST_URL_HTTP1` / `HTTP2`, `VITE_GRPC_URL_HTTP1` / `HTTP2`, `VITE_GRAFT_WS_URL_HTTP1` / `HTTP2` (and optional legacy `PERF_LAB_REST_URL`, `PERF_LAB_GRPC_URL`, `PERF_LAB_GRAFT_WS_URL`).

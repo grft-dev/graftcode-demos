@@ -31,8 +31,8 @@ builder.WebHost.ConfigureKestrel(options =>
         }
         else
         {
-            // Cleartext HTTP/2 (h2c) to the ingress.
-            listenOptions.Protocols = HttpProtocols.Http2;
+            // Azure ingress may speak h2c; browsers use gRPC-Web over HTTP/1.1 POST (local Docker).
+            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
         }
     });
 });

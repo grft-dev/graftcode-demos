@@ -37,15 +37,23 @@ jobs:
 
       - name: Install dependencies
         run: |
-          printf '@graft:registry=https://grft.dev/019d9fab-b7c0-73af-8344-d6b7a2aef977__graftcode\n' > .npmrc
+          printf '@graft:registry=https://grft.dev/6d44e8fa-78dc-4f89-b04f-8f0161172d31__free\n' > .npmrc
           npm install --no-audit --no-fund
 
       - name: Build
         run: npm run build
         env:
+          # Legacy fallbacks (optional if HTTP1/HTTP2 pairs are set)
           VITE_REST_URL: ${{ vars.PERF_LAB_REST_URL }}
           VITE_GRPC_URL: ${{ vars.PERF_LAB_GRPC_URL }}
           VITE_GRAFT_WS_URL: ${{ vars.PERF_LAB_GRAFT_WS_URL }}
+          # HTTP version switch (GitHub repo variables)
+          VITE_REST_URL_HTTP1: ${{ vars.VITE_REST_URL_HTTP1 }}
+          VITE_REST_URL_HTTP2: ${{ vars.VITE_REST_URL_HTTP2 }}
+          VITE_GRPC_URL_HTTP1: ${{ vars.VITE_GRPC_URL_HTTP1 }}
+          VITE_GRPC_URL_HTTP2: ${{ vars.VITE_GRPC_URL_HTTP2 }}
+          VITE_GRAFT_WS_URL_HTTP1: ${{ vars.VITE_GRAFT_WS_URL_HTTP1 }}
+          VITE_GRAFT_WS_URL_HTTP2: ${{ vars.VITE_GRAFT_WS_URL_HTTP2 }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

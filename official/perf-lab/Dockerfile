@@ -3,7 +3,7 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
-ARG GRAFT_REGISTRY
+ARG GRAFT_REGISTRY=https://grft.dev/6d44e8fa-78dc-4f89-b04f-8f0161172d31__free
 COPY package*.json ./
 RUN printf '@graft:registry=%s\n' "${GRAFT_REGISTRY}" > .npmrc \
   && npm install \
