@@ -2,6 +2,8 @@ using System.Security.Cryptography.X509Certificates;
 using EnergyPriceGrpc.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
+AppContext.SetSwitch("Microsoft.AspNetCore.Server.Kestrel.Http2UnencryptedSupport", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // HTTPS + HTTP/2 on :5005, sharing the local mkcert PEM with the other services.
@@ -31,8 +33,13 @@ builder.WebHost.ConfigureKestrel(options =>
         }
         else
         {
-            // Azure ingress may speak h2c; browsers use gRPC-Web over HTTP/1.1 POST (local Docker).
-            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+            var cleartextHttp2 = string.Equals(
+                Environment.GetEnvironmentVariable("KESTREL_CLEARTEXT_HTTP2"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+            listenOptions.Protocols = cleartextHttp2
+                ? HttpProtocols.Http2
+                : HttpProtocols.Http1;
         }
     });
 });

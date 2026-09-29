@@ -16,4 +16,8 @@
     <Protobuf Include="Protos\price.proto" GrpcServices="Server" />
   </ItemGroup>
 
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="Microsoft.AspNetCore.Server.Kestrel.Http2UnencryptedSupport" Value="true" />
+  </ItemGroup>
+
 </Project>
