@@ -12,6 +12,8 @@ namespace EnergyPriceService
     {
         public static void Main(string[] args)
         {
+            AppContext.SetSwitch("Microsoft.AspNetCore.Server.Kestrel.Http2UnencryptedSupport", true);
+
             var builder = WebApplication.CreateBuilder(args);
 
             // Serve REST over HTTPS with HTTP/2 (h2) so it matches the gRPC and
@@ -46,11 +48,13 @@ namespace EnergyPriceService
                     }
                     else
                     {
-                        // Cleartext to the ingress. Without TLS there is no ALPN, so a
-                        // cleartext port serves one protocol; REST uses HTTP/1.1 here.
-                        // Set the Container App ingress transport to "auto" so the
-                        // browser still negotiates HTTP/2 with the ingress.
-                        listenOptions.Protocols = HttpProtocols.Http1;
+                        var cleartextHttp2 = string.Equals(
+                            Environment.GetEnvironmentVariable("KESTREL_CLEARTEXT_HTTP2"),
+                            "true",
+                            StringComparison.OrdinalIgnoreCase);
+                        listenOptions.Protocols = cleartextHttp2
+                            ? HttpProtocols.Http2
+                            : HttpProtocols.Http1;
                     }
                 });
             });

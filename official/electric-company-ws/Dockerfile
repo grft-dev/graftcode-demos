@@ -12,9 +12,8 @@ RUN dotnet publish ./be.csproj -c Release -o out
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-# No TLS cert in the container -> the service listens on $PORT in cleartext HTTP/1.1;
-# Azure Container Apps ingress terminates TLS and serves HTTP/2 to the browser
-# (set ingress transport to "auto").
+# No TLS cert in the container -> Kestrel serves cleartext HTTP/1.1 + h2c on $PORT;
+# demo-ecws-h2 sets ingress transport to "http2"; demo-ecws uses "http".
 ENV PORT=8080
 EXPOSE 8080
 
