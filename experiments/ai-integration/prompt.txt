@@ -1,0 +1,1 @@
+Leave every existing C# business logic file unchanged. Using {TECH}, integrate every public method so the page shows each result. Follow the project rules. Do not run any commands, installs, or builds. Only write files.

@@ -1,3 +1,4 @@
+// metrics:begin grpc.proto.header
 syntax = "proto3";
 
 option csharp_namespace = "EnergyPriceGrpc";
@@ -5,34 +6,40 @@ option csharp_namespace = "EnergyPriceGrpc";
 package energyprice;
 
 service PriceService {
-  // Trivial unary call (single number) — used by the original benchmark.
+// metrics:end grpc.proto.header
+  // metrics:begin grpc.getPrice.rpc
+  // Trivial unary call (single number) — used by the benchmark.
   rpc GetPrice(GetPriceRequest) returns (GetPriceResponse);
+  // metrics:end grpc.getPrice.rpc
 
-  // Large payload: one unary call returns `count` price points. This is where
-  // protobuf's compact binary encoding can beat REST/JSON.
+  // metrics:begin grpc.history.rpc
+  // Large payload: one unary call returns `count` price points.
   rpc GetPriceHistory(GetPriceHistoryRequest) returns (GetPriceHistoryResponse);
+  // metrics:end grpc.history.rpc
 
-  // Server streaming: the server streams `count` price points one at a time
-  // over a single HTTP/2 stream — gRPC's signature advantage over REST.
+  // metrics:begin grpc.stream.rpc
+  // Server streaming: gRPC-only. No REST or Graftcode counterpart.
   rpc StreamPrices(StreamPricesRequest) returns (stream PricePoint);
+  // metrics:end grpc.stream.rpc
+// metrics:begin grpc.proto.footer
 }
+// metrics:end grpc.proto.footer
 
+// metrics:begin grpc.getPrice.messages
 message GetPriceRequest {}
 
 message GetPriceResponse {
   double price = 1;
 }
+// metrics:end grpc.getPrice.messages
 
+// metrics:begin grpc.history.messages
 message GetPriceHistoryRequest {
   int32 count = 1;
 }
 
 message GetPriceHistoryResponse {
   repeated PricePoint points = 1;
-}
-
-message StreamPricesRequest {
-  int32 count = 1;
 }
 
 // A reasonably "fat" record so the JSON-vs-protobuf size/parse difference is real.
@@ -46,3 +53,10 @@ message PricePoint {
   string region = 7;
   string source = 8;
 }
+// metrics:end grpc.history.messages
+
+// metrics:begin grpc.stream.messages
+message StreamPricesRequest {
+  int32 count = 1;
+}
+// metrics:end grpc.stream.messages

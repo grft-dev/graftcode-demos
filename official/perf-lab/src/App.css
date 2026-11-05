@@ -596,6 +596,119 @@
   color: #9d174d;
 }
 
+.scope-switch {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.scope-switch button {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.scope-switch-active {
+  background: #111827 !important;
+  color: #ffffff;
+  border-color: #111827 !important;
+}
+
+.scope-note {
+  color: #6b7280;
+  margin-top: 0;
+}
+
+.metric-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.token-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metric-column {
+  min-width: 0;
+}
+
+.metric-column h4,
+.code-metrics h4 {
+  margin: 1rem 0 0.4rem;
+}
+
+.metric-bucket h5 {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.9rem;
+}
+
+.snippet {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  margin: 0.35rem 0;
+  background: #f9fafb;
+}
+
+.snippet summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.snippet-count {
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.snippet-path,
+.snippet-reason {
+  margin: 0.35rem 0 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.snippet pre {
+  overflow-x: auto;
+  margin: 0.4rem 0 0.2rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.verify-box {
+  margin-top: 1rem;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.verify-box pre {
+  overflow-x: auto;
+  background: #111827;
+  color: #f9fafb;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.verify-box pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+}
+
+.callout p {
+  margin: 0.4rem 0 0;
+  font-weight: 400;
+}
+
 @media (max-width: 720px) {
   .payload-header {
     flex-direction: column;
@@ -618,5 +731,9 @@
   .metrics-table th,
   .metrics-table td {
     padding: 0.5rem 0.55rem;
+  }
+
+  .metric-columns {
+    grid-template-columns: 1fr;
   }
 }

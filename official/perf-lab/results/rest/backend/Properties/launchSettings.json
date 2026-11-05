@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "EnergyPriceService": {
+      "commandName": "Project",
+      "applicationUrl": "http://localhost:5283",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

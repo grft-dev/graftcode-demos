@@ -1,3 +1,4 @@
+# metrics:begin graft.deploy.dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
@@ -27,3 +28,4 @@ RUN mkdir -p /usr/app \
 COPY --from=build /app/publish/ /usr/app/
 
 CMD ["gg", "--runtime", "netcore", "--modules", "/usr/app/EnergyPriceService.dll", "--port", "81", "--httpPort", "5001"]
+# metrics:end graft.deploy.dockerfile

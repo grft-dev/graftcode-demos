@@ -1,0 +1,143 @@
+{
+  "model": "composer-2.5",
+  "prompt": "Leave every existing C# business logic file unchanged. Using {TECH}, integrate every public method so the page shows each result. Follow the project rules. Do not run any commands, installs, or builds. Only write files.",
+  "reduction": 46.9,
+  "outputReduction": 63.3,
+  "starterFiles": 9,
+  "starterLines": 254,
+  "repoPath": "experiments/ai-integration",
+  "stacks": {
+    "rest": {
+      "name": "REST",
+      "totalTokens": 164132.5,
+      "inputTokens": 152334,
+      "outputTokens": 11825.5,
+      "files": 52,
+      "lines": 957,
+      "paths": [
+        "backend/ApplyLateFeeRequest.cs",
+        "backend/ApplyLateFeeResponse.cs",
+        "backend/ApplyLoyaltyDiscountRequest.cs",
+        "backend/ApplyLoyaltyDiscountResponse.cs",
+        "backend/ApplyTimeOfUseAdjustmentRequest.cs",
+        "backend/ApplyTimeOfUseAdjustmentResponse.cs",
+        "backend/BusinessLogic.cs",
+        "backend/CalculateLoyaltyDiscountPercentRequest.cs",
+        "backend/CalculateLoyaltyDiscountPercentResponse.cs",
+        "backend/CalculateMonthlyBillRequest.cs",
+        "backend/CalculateMonthlyBillResponse.cs",
+        "backend/CalculateOutageRebateRequest.cs",
+        "backend/CalculateOutageRebateResponse.cs",
+        "backend/CalculateTaxRequest.cs",
+        "backend/CalculateTaxResponse.cs",
+        "backend/CalculateTieredCostRequest.cs",
+        "backend/CalculateTieredCostResponse.cs",
+        "backend/DetermineTierRequest.cs",
+        "backend/DetermineTierResponse.cs",
+        "backend/EnergyPriceService.cs",
+        "backend/EnergyPriceService.csproj",
+        "backend/EstimateAverageDailyUsageRequest.cs",
+        "backend/EstimateAverageDailyUsageResponse.cs",
+        "backend/EstimateRestorationTimeMinutesRequest.cs",
+        "backend/EstimateRestorationTimeMinutesResponse.cs",
+        "backend/GetPriceHistoryRequest.cs",
+        "backend/GetPriceHistoryResponse.cs",
+        "backend/GetPriceRequest.cs",
+        "backend/GetPriceResponse.cs",
+        "backend/IsBudgetBillingEligibleRequest.cs",
+        "backend/IsBudgetBillingEligibleResponse.cs",
+        "backend/IsReadingValidRequest.cs",
+        "backend/IsReadingValidResponse.cs",
+        "backend/IsRebateEligibleRequest.cs",
+        "backend/IsRebateEligibleResponse.cs",
+        "backend/IsVipEligibleRequest.cs",
+        "backend/IsVipEligibleResponse.cs",
+        "backend/NetConsumptionKWhRequest.cs",
+        "backend/NetConsumptionKWhResponse.cs",
+        "backend/PricePointDto.cs",
+        "backend/Program.cs",
+        "backend/ProjectNextCycleUsageKWhRequest.cs",
+        "backend/ProjectNextCycleUsageKWhResponse.cs",
+        "backend/Properties/launchSettings.json",
+        "backend/RewardPointsForUsageRequest.cs",
+        "backend/RewardPointsForUsageResponse.cs",
+        "index.html",
+        "package.json",
+        "src/api.js",
+        "src/App.jsx",
+        "src/main.jsx",
+        "vite.config.js"
+      ],
+      "rules": [
+        {
+          "path": "rules/rest/.cursor/rules/rest.mdc",
+          "tokens": 147,
+          "source": "---\ndescription: REST endpoints and typed fetch\nalwaysApply: true\n---\n\nTurn the backend into an ASP.NET Core web app. Do not edit the existing business logic files.\n\nExpose every public method as its own HTTP endpoint. Give each method its own request type and its own response type. Each argument is a property. The response is an object, not a bare number or boolean. Do not reuse a type for two methods.\n\nPut one C# type in each file, and name the file after the type.\n\nIn `src/api.js`, one async function per method. Each calls `fetch`, checks `response.ok`, and returns the JSON. `App.jsx` calls each function and shows the result.\n\nDo not run commands."
+        }
+      ]
+    },
+    "graftcode": {
+      "name": "Graftcode",
+      "totalTokens": 87114,
+      "inputTokens": 82355,
+      "outputTokens": 4336,
+      "files": 10,
+      "lines": 329,
+      "paths": [
+        "backend/BusinessLogic.cs",
+        "backend/Dockerfile",
+        "backend/EnergyPriceService.cs",
+        "backend/EnergyPriceService.csproj",
+        "backend/PricePointDto.cs",
+        "index.html",
+        "package.json",
+        "src/App.jsx",
+        "src/main.jsx",
+        "vite.config.js"
+      ],
+      "rules": [
+        {
+          "path": "rules/graftcode/.cursor/rules/graftcode.mdc",
+          "tokens": 226,
+          "source": "---\ndescription: Graftcode direct calls\nalwaysApply: true\n---\n\nRead the public methods in the C# files. Do not edit those files.\n\nIn `src/App.jsx`, import `GraftConfig` and the classes from `@graft/nuget-energypriceservice`. Set `GraftConfig.host = 'ws://localhost:80/ws'`. Call every public method once with literal numbers. A JavaScript name is the C# name with a lowercase first letter. Append each result to `pre#out`. No forms and no other components.\n\nThe generated client uses top-level await. In `vite.config.js`, set `build.target` to `esnext`.\n\nWrite `backend/Dockerfile`. Build and publish with the .NET 8 SDK. The runtime image is `graftcode/netcore:10.0`. Copy the published output to `/usr/app`, expose port 80, and start `gg --runtime netcore --modules /usr/app/EnergyPriceService.dll --port 80`.\n\nDo not run commands. Do not add controllers, routes, DTOs, or fetch."
+        }
+      ]
+    }
+  },
+  "snippets": {
+    "rest": [
+      {
+        "title": "Request type",
+        "path": "backend/CalculateTaxRequest.cs",
+        "source": "namespace EnergyPriceService;\n\npublic class CalculateTaxRequest\n{\n    public double Amount { get; set; }\n    public double TaxRatePercent { get; set; }\n}",
+        "tokens": 35
+      },
+      {
+        "title": "Response type",
+        "path": "backend/CalculateTaxResponse.cs",
+        "source": "namespace EnergyPriceService;\n\npublic class CalculateTaxResponse\n{\n    public double Tax { get; set; }\n}",
+        "tokens": 23
+      },
+      {
+        "title": "Endpoint",
+        "path": "backend/Program.cs",
+        "source": "app.MapPost(\"/api/calculate-tax\", (CalculateTaxRequest request) =>\n{\n    var tax = BillingLogic.CalculateTax(request.Amount, request.TaxRatePercent);\n    return Results.Ok(new CalculateTaxResponse { Tax = tax });\n});",
+        "tokens": 49
+      },
+      {
+        "title": "Client function",
+        "path": "src/api.js",
+        "source": "export async function calculateTax(body) {\n  const response = await fetch('/api/calculate-tax', {\n    method: 'POST',\n    headers: jsonHeaders,\n    body: JSON.stringify(body),\n  })\n  if (!response.ok) throw new Error(`calculateTax: ${response.status}`)\n  return response.json()\n}",
+        "tokens": 65
+      }
+    ],
+    "graftcode": [
+      {
+        "title": "Direct call",
+        "path": "src/App.jsx",
+        "source": "appendResult(await BillingLogic.calculateTax(640, 6))",
+        "tokens": 13
+      }
+    ]
+  }
+}

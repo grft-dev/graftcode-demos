@@ -1,0 +1,14 @@
+---
+description: Graftcode direct calls
+alwaysApply: true
+---
+
+Read the public methods in the C# files. Do not edit those files.
+
+In `src/App.jsx`, import `GraftConfig` and the classes from `@graft/nuget-energypriceservice`. Set `GraftConfig.host = 'ws://localhost:80/ws'`. Call every public method once with literal numbers. A JavaScript name is the C# name with a lowercase first letter. Append each result to `pre#out`. No forms and no other components.
+
+The generated client uses top-level await. In `vite.config.js`, set `build.target` to `esnext`.
+
+Write `backend/Dockerfile`. Build and publish with the .NET 8 SDK. The runtime image is `graftcode/netcore:10.0`. Copy the published output to `/usr/app`, expose port 80, and start `gg --runtime netcore --modules /usr/app/EnergyPriceService.dll --port 80`.
+
+Do not run commands. Do not add controllers, routes, DTOs, or fetch.

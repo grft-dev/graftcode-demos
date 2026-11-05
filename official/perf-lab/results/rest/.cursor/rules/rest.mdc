@@ -1,0 +1,14 @@
+---
+description: REST endpoints and typed fetch
+alwaysApply: true
+---
+
+Turn the backend into an ASP.NET Core web app. Do not edit the existing business logic files.
+
+Expose every public method as its own HTTP endpoint. Give each method its own request type and its own response type. Each argument is a property. The response is an object, not a bare number or boolean. Do not reuse a type for two methods.
+
+Put one C# type in each file, and name the file after the type.
+
+In `src/api.js`, one async function per method. Each calls `fetch`, checks `response.ok`, and returns the JSON. `App.jsx` calls each function and shows the result.
+
+Do not run commands.

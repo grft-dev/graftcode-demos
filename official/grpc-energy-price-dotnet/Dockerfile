@@ -1,3 +1,4 @@
+# metrics:begin grpc.deploy.dockerfile
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
@@ -19,3 +20,4 @@ EXPOSE 8080
 
 COPY --from=build /src/out ./
 ENTRYPOINT ["dotnet", "EnergyPriceGrpc.dll"]
+# metrics:end grpc.deploy.dockerfile

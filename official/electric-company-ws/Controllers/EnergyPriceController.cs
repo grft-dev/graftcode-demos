@@ -3,6 +3,7 @@ using EnergyPriceService.Dtos;
 
 namespace EnergyPriceService.Controllers
 {
+    // metrics:begin rest.getPrice.controller
     [ApiController]
     [Route("api/[controller]")]
     public class EnergyPriceController : ControllerBase
@@ -12,11 +13,14 @@ namespace EnergyPriceService.Controllers
         {
             return Ok(EnergyPriceService.GetPrice());
         }
+    // metrics:end rest.getPrice.controller
 
+        // metrics:begin rest.history.controller
         [HttpGet("history")]
         public ActionResult<IEnumerable<PricePointDto>> GetHistory([FromQuery] int count = 1000)
         {
             return Ok(EnergyPriceService.GetPriceHistory(count));
         }
+        // metrics:end rest.history.controller
     }
 }

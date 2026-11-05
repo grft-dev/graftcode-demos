@@ -16,6 +16,7 @@ namespace EnergyPriceService
 
             var builder = WebApplication.CreateBuilder(args);
 
+            // metrics:begin rest.host.transport
             // Serve REST over HTTPS with HTTP/2 (h2) so it matches the gRPC and
             // Graftcode paths in the perf-lab benchmark. Browsers require TLS for
             // HTTP/2, so we load the shared local mkcert PEM. HTTP/1.1 stays
@@ -58,10 +59,16 @@ namespace EnergyPriceService
                     }
                 });
             });
+            // metrics:end rest.host.transport
 
+            // metrics:begin rest.host.controllers
             builder.Services.AddControllers();
+            // metrics:end rest.host.controllers
+            // metrics:begin rest.host.swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            // metrics:end rest.host.swagger
+            // metrics:begin rest.host.cors
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", policy =>
@@ -70,21 +77,28 @@ namespace EnergyPriceService
                         .AllowAnyHeader()
                         .AllowAnyMethod());
             });
+            // metrics:end rest.host.cors
 
             var app = builder.Build();
 
+            // metrics:begin rest.host.swagger-ui
             app.UseSwagger();
             app.UseSwaggerUI();
+            // metrics:end rest.host.swagger-ui
 
+            // metrics:begin rest.host.map
             app.UseRouting();
             app.UseCors("AllowAll");
 
             app.UseAuthorization();
 
             app.MapControllers();
+            // metrics:end rest.host.map
 
+            // metrics:begin rest.host.status
             // Health check endpoint for Container App probes
             app.MapGet("/status", () => Results.Ok(new { status = "healthy" }));
+            // metrics:end rest.host.status
 
             app.Run();
         }

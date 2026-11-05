@@ -1,0 +1,8 @@
+{
+  "EnergyPriceService": ["GetPrice", "GetPriceHistory"],
+  "BillingLogic": ["CalculateMonthlyBill", "ApplyLateFee", "CalculateTax", "IsBudgetBillingEligible"],
+  "MeterLogic": ["NetConsumptionKWh", "IsReadingValid", "EstimateAverageDailyUsage", "ProjectNextCycleUsageKWh"],
+  "TariffLogic": ["DetermineTier", "CalculateTieredCost", "ApplyTimeOfUseAdjustment"],
+  "OutageLogic": ["IsRebateEligible", "CalculateOutageRebate", "EstimateRestorationTimeMinutes"],
+  "LoyaltyLogic": ["CalculateLoyaltyDiscountPercent", "IsVipEligible", "RewardPointsForUsage", "ApplyLoyaltyDiscount"]
+}

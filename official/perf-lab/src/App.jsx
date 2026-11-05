@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
-import { GraftConfig, EnergyPriceService } from '@graft/nuget-energypriceservice'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
-import { callGrpcGetPrice, streamGrpcPrices } from './grpcClient'
+import { configureGraftHost, graftGetPrice } from './clients/graftClient'
+import { callGrpcGetPrice, streamGrpcPrices } from './clients/grpcClient'
+import { fetchEnergyPrice } from './clients/restClient'
+import { AiTokenCost } from './AiTokenCost'
 import {
   applyGraftConfigHost,
   HTTP_BACKEND_MODE_OPTIONS,
@@ -12,28 +14,6 @@ import {
   resolveHttpBackendRestUrl,
   saveHttpBackendMode,
 } from './httpBackendConfig'
-import locMetrics from './metrics/loc-comparison.json'
-
-const metricsDocUrl =
-  'https://github.com/grft-dev/graftcode-demos/blob/main/official/perf-lab/src/metrics/METRICS.md'
-const measureScriptUrl =
-  'https://github.com/grft-dev/graftcode-demos/blob/main/scripts/measure-integration-metrics.mjs'
-
-// Static counts, measured once by scripts/measure-integration-metrics.mjs over the
-// same getPrice/getPriceHistory path the benchmark above calls at runtime.
-const codeSlice = locMetrics.tables.energyPriceSlice
-const codeRows = ['rest', 'grpc', 'graftcode'].map((key) => {
-  const stack = codeSlice.stacks[key]
-  return {
-    key,
-    name: stack.name,
-    sloc: stack.sloc.code,
-    tokens: stack.tokens_cl100k,
-    glueSloc: stack.sloc_integration_plus_client,
-  }
-})
-const codeBaseline = codeRows.find((row) => row.key === 'graftcode')
-
 const BENCHMARK_PATH_ORDER = ['rest', 'grpcUnary', 'grpcStream', 'graftcode']
 
 const BENCHMARK_PATH_META = {
@@ -183,17 +163,16 @@ function App() {
 
   useEffect(() => {
     try {
-      GraftConfig.host = applyGraftConfigHost(httpBackendMode)
-      GraftConfig.stateless = true
+      configureGraftHost(applyGraftConfigHost(httpBackendMode))
       setGraftError(null)
     } catch (err) {
-      setGraftError(err?.message || 'Failed to initialize GraftConfig')
+      setGraftError(err?.message || 'Failed to configure the Graft host')
     }
   }, [httpBackendMode])
 
   const getEnergyPrice = async () => {
     try {
-      const calculatedPrice = await EnergyPriceService.getPrice()
+      const calculatedPrice = await graftGetPrice()
       setPrice(calculatedPrice)
     } catch (err) {
       setGraftError(err?.message || 'getPrice failed')
@@ -292,9 +271,7 @@ function App() {
       const grpcBase = grpcBaseUrl
 
       const restCall = async () => {
-        const r = await fetch(`${restHost}/api/EnergyPrice/price`)
-        if (!r.ok) throw new Error(`REST failed (${r.status})`)
-        await r.json()
+        await fetchEnergyPrice(restHost)
       }
       patchBenchmarkPath('rest', { phase: 'baseline' })
       setRestManyBaselineMs(await measureBaseline(restCall))
@@ -327,7 +304,7 @@ function App() {
       patchBenchmarkPath('grpcStream', { phase: 'done', current: count })
 
       const graftCall = async () => {
-        await EnergyPriceService.getPrice()
+        await graftGetPrice()
       }
       patchBenchmarkPath('graftcode', { phase: 'baseline' })
       setGraftManyBaselineMs(await measureBaseline(graftCall))
@@ -455,7 +432,7 @@ function App() {
     <div className="perf-app">
       {graftError && (
         <div className="graft-error" role="alert">
-          GraftConfig init failed: {graftError}. Running locally, the backend may be unreachable.
+          Graft host setup failed: {graftError}. Running locally, the backend may be unreachable.
         </div>
       )}
 
@@ -693,63 +670,7 @@ function App() {
         })()}
       </section>
 
-      <section className="code-metrics">
-        <h3>Code &amp; AI Token Cost</h3>
-        <p>How much integration code a developer (or an AI assistant) has to write for the same <code>getPrice</code> / <code>getPriceHistory</code> calls benchmarked above. Counted once from the committed source — this table does not change when you run the comparison.</p>
-
-        <div className="metrics-table-wrap">
-          <table className="metrics-table">
-            <thead>
-              <tr>
-                <th scope="col">Technology</th>
-                <th scope="col">Lines of code</th>
-                <th scope="col">AI tokens</th>
-                <th scope="col">vs Graftcode</th>
-              </tr>
-            </thead>
-            <tbody>
-              {codeRows.map((row) => (
-                <tr key={row.key} className={row.key === 'graftcode' ? 'winner' : undefined}>
-                  <td>{row.name}</td>
-                  <td>{row.sloc.toLocaleString()}</td>
-                  <td>{row.tokens.toLocaleString()}</td>
-                  <td>
-                    {row.key === 'graftcode'
-                      ? 'baseline'
-                      : `${(row.sloc / codeBaseline.sloc).toFixed(1)}x`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="callout">
-          <strong>
-            Graftcode needs {codeSlice.reductions.rest_to_graftcode.sloc_integration_plus_client}% less
-            integration code than REST and {codeSlice.reductions.grpc_to_graftcode.sloc_integration_plus_client}% less than gRPC
-          </strong>
-        </div>
-
-        <div className="metrics-footnote">
-          <p>
-            Static one-shot measurement of the same <code>getPrice</code> / <code>getPriceHistory</code> path
-            (this table is not recomputed when you run the comparison). SLOC is a custom cloc-style scan of
-            committed source — <code>//</code> and <code>/* */</code> comments and blank lines excluded.
-            AI tokens are <code>js-tiktoken</code> <strong>cl100k_base</strong> on those same files: a proxy for
-            handwritten integration code, not tokens from a live agent session. Graftcode AI rules are not
-            added. Generated clients, <code>protoc</code> C#, <code>gg</code> / Kestrel binaries,{' '}
-            <code>node_modules</code>, and <code>BusinessLogic.cs</code> (unused by this lab) are not counted.
-          </p>
-          <p>
-            Captured {new Date(locMetrics.measuredAt).toISOString().slice(0, 10)} at git{' '}
-            <code>{String(locMetrics.gitSha).slice(0, 7)}</code>.{' '}
-            <a href={metricsDocUrl} target="_blank" rel="noopener noreferrer">Methodology (METRICS.md)</a>
-            {' · '}
-            <a href={measureScriptUrl} target="_blank" rel="noopener noreferrer">Measurement script</a>
-          </p>
-        </div>
-      </section>
+      <AiTokenCost />
     </div>
   )
 }

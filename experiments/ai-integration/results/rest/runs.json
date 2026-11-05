@@ -1,0 +1,231 @@
+{
+  "arm": "rest",
+  "tech": "REST",
+  "model": "composer-2.5",
+  "turnCap": 30,
+  "guidanceTokens": 148,
+  "prompt": "Leave every existing C# business logic file unchanged. Using REST, integrate every public method so the page shows each result. Follow the project rules. Do not run any commands, installs, or builds. Only write files.",
+  "note": "Eight runs of the same prompt and REST rule, in two batches on 5 November 2026. Cursor adds its own system prompt to every run. It raises totals and not the difference between technologies.",
+  "runs": [
+    {
+      "startedAt": "2026-11-05T16:20:37.426Z",
+      "usage": {
+        "inputTokens": 158319,
+        "outputTokens": 12126,
+        "cacheReadTokens": 101696,
+        "cacheWriteTokens": 0,
+        "totalTokens": 170445
+      },
+      "status": "finished",
+      "durationMs": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      },
+      "index": 1
+    },
+    {
+      "startedAt": "2026-11-05T16:21:49.634Z",
+      "usage": {
+        "inputTokens": 156759,
+        "outputTokens": 11865,
+        "cacheReadTokens": 126688,
+        "cacheWriteTokens": 0,
+        "totalTokens": 168624
+      },
+      "status": "finished",
+      "durationMs": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      },
+      "index": 2
+    },
+    {
+      "startedAt": "2026-11-05T16:22:39.298Z",
+      "usage": {
+        "inputTokens": 135263,
+        "outputTokens": 11991,
+        "cacheReadTokens": 70752,
+        "cacheWriteTokens": 0,
+        "totalTokens": 147254
+      },
+      "status": "finished",
+      "durationMs": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      },
+      "index": 3
+    },
+    {
+      "index": 4,
+      "startedAt": "2026-11-05T16:58:21.249Z",
+      "requestId": "8515956b-bbac-4187-aa0d-b671f6195def",
+      "status": "finished",
+      "durationMs": 47123,
+      "usage": {
+        "inputTokens": 152273,
+        "outputTokens": 12160,
+        "cacheReadTokens": 89216,
+        "cacheWriteTokens": 0,
+        "totalTokens": 164433
+      },
+      "turns": [
+        {
+          "inputTokens": 152273,
+          "outputTokens": 12160,
+          "cacheReadTokens": 89216,
+          "cacheWriteTokens": 0,
+          "totalTokens": 164433
+        }
+      ],
+      "result": "REST integration is in place without changing `BusinessLogic.cs`, `EnergyPriceService.cs`, or `PricePointDto.cs`.\n\n### Backend (ASP.NET Core)\n- **`EnergyPriceService.csproj`** — Web SDK (`Microsoft.NET.Sdk.Web`).\n- **`Program.cs`** — 20 POST routes under `/api/...`, each calling the matching static logic method.\n- **40 request/response types** — one type per file, unique per endpoint; scalars and booleans wrapped in objects (e.g. `GetPriceResponse.Price`, `IsReadingValidResponse.Valid`).\n- **`Properties/launchSettings.json`** — listens on `http://localhost:5000`.\n- CORS allows `http://localhost:5173`.\n\n### Frontend\n- **`src/api.js`** — 20 `fetch` helpers with `response.ok` checks.\n- **`src/App.jsx`** — on load, calls every API with sample inputs and lists each JSON result.\n- **`vite.config.js`** — proxies `/api` to the backend on port 5000.\n\n### Endpoints (20)\n| Area | Methods |\n|------|---------|\n| Energy price | `get-price`, `get-price-history` |\n| Billing | `calculate-monthly-bill`, `apply-late-fee`, `calculate-tax`, `is-budget-billing-eligible` |\n| Meter | `net-consumption-kwh`, `is-reading-valid`, `estimate-average-daily-usage`, `project-next-cycle-usage-kwh` |\n| Tariff | `determine-tier`, `calculate-tiered-cost`, `apply-time-of-use-adjustment` |\n| Outage | `is-rebate-eligible`, `calculate-outage-rebate`, `estimate-restoration-time-minutes` |\n| Loyalty | `calculate-loyalty-discount-percent`, `is-vip-eligible`, `reward-points-for-usage`, `apply-loyalty-discount` |\n\nRun the API from `backend` and the Vite dev server from the project root when you are ready to try it locally.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 5,
+      "startedAt": "2026-11-05T16:59:12.894Z",
+      "requestId": "7674a2ac-bf8d-4d45-818f-71d3e9123b46",
+      "status": "finished",
+      "durationMs": 44112,
+      "usage": {
+        "inputTokens": 133739,
+        "outputTokens": 10473,
+        "cacheReadTokens": 90464,
+        "cacheWriteTokens": 0,
+        "totalTokens": 144212
+      },
+      "turns": [
+        {
+          "inputTokens": 133739,
+          "outputTokens": 10473,
+          "cacheReadTokens": 90464,
+          "cacheWriteTokens": 0,
+          "totalTokens": 144212
+        }
+      ],
+      "result": "Integration is in place without changing `BusinessLogic.cs`, `EnergyPriceService.cs`, or `PricePointDto.cs`.\n\n### Backend (ASP.NET Core)\n- **`EnergyPriceService.csproj`** — switched to `Microsoft.NET.Sdk.Web`.\n- **`Program.cs`** — 20 `POST /api/...` routes, each calling one public method and returning a dedicated response type; CORS enabled.\n- **`Requests/` & `Responses/`** — 40 files (one type per file) for every method.\n- **`Properties/launchSettings.json`** — API at `http://localhost:5000`.\n\n### Frontend\n- **`src/api.js`** — 20 async helpers using `fetch`, `response.ok`, and JSON.\n- **`src/App.jsx`** — on load, calls every API with sample inputs and shows each JSON result (or error).\n- **`vite.config.js`** — proxies `/api` to the backend.\n\nRun the API from `backend` (`dotnet run`) and the UI from the project root (`npm run dev`) when you are ready to try it.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 6,
+      "startedAt": "2026-11-05T17:00:01.892Z",
+      "requestId": "be58a021-197a-454e-b1ae-8f1cde4ffab5",
+      "status": "finished",
+      "durationMs": 54887,
+      "usage": {
+        "inputTokens": 152395,
+        "outputTokens": 11437,
+        "cacheReadTokens": 121408,
+        "cacheWriteTokens": 0,
+        "totalTokens": 163832
+      },
+      "turns": [
+        {
+          "inputTokens": 152395,
+          "outputTokens": 11437,
+          "cacheReadTokens": 121408,
+          "cacheWriteTokens": 0,
+          "totalTokens": 163832
+        }
+      ],
+      "result": "Here is what was added without changing `BusinessLogic.cs`, `EnergyPriceService.cs`, or `PricePointDto.cs`.\n\n### Backend (ASP.NET Core)\n- **`EnergyPriceService.csproj`** — switched to `Microsoft.NET.Sdk.Web`.\n- **`Program.cs`** — 20 `POST /api/...` endpoints that call the existing static logic.\n- **40 contract types** — one file per type (`*Request.cs` / `*Response.cs`), each method with its own pair; scalars and booleans are wrapped in response objects (e.g. `Eligible`, `Total`, `Points`).\n- **`Properties/launchSettings.json`** — API on `http://localhost:5283`.\n\n### Frontend\n- **`src/api.js`** — 20 async functions, each using `fetch`, checking `response.ok`, and returning JSON.\n- **`src/App.jsx`** — on load, calls every API with sample inputs and shows each JSON response in a table.\n- **`vite.config.js`** — proxies `/api` to the backend.\n\nTo try it locally: run the API from `backend`, then `npm run dev` for the UI. The table should fill with all 20 responses when both are up.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 7,
+      "startedAt": "2026-11-05T17:01:00.414Z",
+      "requestId": "d1a2645b-a6dd-40ff-8660-d9207b1fce21",
+      "status": "finished",
+      "durationMs": 55037,
+      "usage": {
+        "inputTokens": 157296,
+        "outputTokens": 11049,
+        "cacheReadTokens": 86176,
+        "cacheWriteTokens": 0,
+        "totalTokens": 168345
+      },
+      "turns": [
+        {
+          "inputTokens": 157296,
+          "outputTokens": 11049,
+          "cacheReadTokens": 86176,
+          "cacheWriteTokens": 0,
+          "totalTokens": 168345
+        }
+      ],
+      "result": "Integrated the stack without touching `BusinessLogic.cs`, `EnergyPriceService.cs`, or `PricePointDto.cs`.\n\n### Backend (ASP.NET Core)\n- **`EnergyPriceService.csproj`** — switched to `Microsoft.NET.Sdk.Web`.\n- **`Program.cs`** — 20 `POST /api/...` routes, each calling the matching static method and returning a dedicated response DTO.\n- **40 contract types** — one request/response pair per method (plus empty `GetPriceRequest`), one type per file.\n- **`Properties/launchSettings.json`** — API at `http://localhost:8080`.\n- CORS enabled for the Vite dev server.\n\n### Frontend\n- **`src/api.js`** — one `fetch` helper per endpoint; checks `response.ok` and returns JSON.\n- **`src/App.jsx`** — on load, calls all 20 APIs with sample inputs and shows JSON (or errors) in a table.\n- **`vite.config.js`** — proxies `/api` → `http://localhost:8080`.\n\nRun the API from `backend` (`dotnet run`) and the UI from the project root (`npm run dev`), then open the app to see every method’s result.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 8,
+      "startedAt": "2026-11-05T17:02:00.035Z",
+      "requestId": "b7e6c6a3-b874-4c44-a2e6-0ef17985bb1d",
+      "status": "finished",
+      "durationMs": 46803,
+      "usage": {
+        "inputTokens": 123033,
+        "outputTokens": 11786,
+        "cacheReadTokens": 100768,
+        "cacheWriteTokens": 0,
+        "totalTokens": 134819
+      },
+      "turns": [
+        {
+          "inputTokens": 123033,
+          "outputTokens": 11786,
+          "cacheReadTokens": 100768,
+          "cacheWriteTokens": 0,
+          "totalTokens": 134819
+        }
+      ],
+      "result": "REST integration is in place without changing `BusinessLogic.cs`, `EnergyPriceService.cs`, or `PricePointDto.cs`.\n\n### Backend (ASP.NET Core)\n- **`EnergyPriceService.csproj`** — Web SDK (`Microsoft.NET.Sdk.Web`).\n- **`Program.cs`** — 20 POST minimal API routes under `/api/…`, each calling the matching static logic method.\n- **41 typed DTO files** — one request and one response type per method (plus empty `GetPriceRequest`).\n- **`Properties/launchSettings.json`** — API at `http://localhost:5280`.\n- CORS allows the Vite dev origin (`http://localhost:5173`).\n\n### Frontend\n- **`src/api.js`** — 20 `fetch` helpers (check `response.ok`, return JSON).\n- **`src/App.jsx`** — on load, calls every API with sample inputs and lists each JSON result.\n- **`vite.config.js`** — proxies `/api` to the backend.\n\nRun the API from `backend`, then the Vite dev server from the project root, and open the app to see all 20 results.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 20,
+        "buildFailures": []
+      }
+    }
+  ]
+}

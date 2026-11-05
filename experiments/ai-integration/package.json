@@ -1,0 +1,13 @@
+{
+  "name": "ai-integration-experiment",
+  "private": true,
+  "type": "module",
+  "description": "Measure assistant tokens for the same energy-price task with REST and with Graftcode.",
+  "scripts": {
+    "compare": "node compare.mjs"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.2.0",
+    "js-tiktoken": "^1.0.21"
+  }
+}

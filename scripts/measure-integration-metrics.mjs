@@ -1,504 +1,346 @@
 /**
- * One-shot SLOC + tiktoken (cl100k_base) measurement for Graftcode vs REST vs gRPC.
- * Headline = EnergyPrice slice (getPrice / getPriceHistory). BusinessLogic is appendix only.
+ * Count handwritten integration code for REST, gRPC, and Graftcode.
  *
- * Usage (from this folder): npm install && npm run measure
+ *   npm run metrics:update   rewrite the JSON and METRICS.md
+ *   npm run metrics:check    exit 1 if the committed files differ
+ *
+ * Regions come from metrics:begin / metrics:end markers. See metrics.manifest.json.
  */
-import { execSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getEncoding } from 'js-tiktoken'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(__dirname, '..')
-const outDir = join(repoRoot, 'official', 'perf-lab', 'src', 'metrics')
-const enc = getEncoding('cl100k_base')
+const metricsDir = join(repoRoot, 'official', 'perf-lab', 'src', 'metrics')
+const jsonPath = join(metricsDir, 'integration-metrics.json')
+const mdPath = join(metricsDir, 'METRICS.md')
+const legacy = ['loc-comparison.json', 'token-comparison.json'].map((name) => join(metricsDir, name))
 
-const now = new Date().toISOString()
-let gitSha = 'unknown'
-try {
-  gitSha = execSync('git rev-parse HEAD', { cwd: repoRoot, encoding: 'utf8' }).trim()
-} catch {
-  /* not a git checkout */
-}
+const cl100k = getEncoding('cl100k_base')
+const o200k = getEncoding('o200k_base')
+
+const STACKS = ['rest', 'grpc', 'graftcode']
+const STACK_NAMES = { rest: 'REST', grpc: 'gRPC', graftcode: 'Graftcode' }
+const SCOPES = ['getPrice', 'whole']
+const BUCKETS = ['counted', 'excluded', 'extra', 'domain', 'deploy', 'dependency']
+
+const check = process.argv.includes('--check')
+const update = process.argv.includes('--update') || !check
 
 function read(rel) {
-  return readFileSync(join(repoRoot, rel), 'utf8')
+  return readFileSync(join(repoRoot, rel), 'utf8').replaceAll('\r\n', '\n')
 }
 
-function extractLines(rel, ranges) {
-  const lines = read(rel).split(/\r?\n/)
-  const chunks = []
-  for (const [from, to] of ranges) {
-    chunks.push(lines.slice(from - 1, to).join('\n'))
-  }
-  return chunks.join('\n\n')
+function fail(message) {
+  console.error(message)
+  process.exit(1)
 }
 
-/** cloc-style: code vs comment vs blank; strings keep their content. */
-function classifySource(text) {
-  let i = 0
-  let state = 'code' // code | lineComment | blockComment | squote | dquote | backtick
-  let lineKind = 'blank' // blank | comment | code
-  let code = 0
-  let comment = 0
-  let blank = 0
-
-  const flushLine = () => {
-    if (lineKind === 'code') code++
-    else if (lineKind === 'comment') comment++
-    else blank++
-    lineKind = 'blank'
-  }
-
-  const mark = (kind) => {
-    if (kind === 'code') lineKind = 'code'
-    else if (kind === 'comment' && lineKind === 'blank') lineKind = 'comment'
-  }
-
-  while (i < text.length) {
-    const c = text[i]
-    const n = text[i + 1]
-
-    if (state === 'lineComment') {
-      mark('comment')
-      if (c === '\n') {
-        flushLine()
-        state = 'code'
-      }
-      i++
-      continue
-    }
-    if (state === 'blockComment') {
-      mark('comment')
-      if (c === '\n') flushLine()
-      if (c === '*' && n === '/') {
-        i += 2
-        state = 'code'
-        continue
-      }
-      i++
-      continue
-    }
-    if (state === 'squote' || state === 'dquote' || state === 'backtick') {
-      mark('code')
-      if (c === '\\') {
-        i += 2
-        continue
-      }
-      if (c === '\n') flushLine()
-      const end = state === 'squote' ? "'" : state === 'dquote' ? '"' : '`'
-      if (c === end) state = 'code'
-      i++
-      continue
-    }
-
-    if (c === '\n') {
-      flushLine()
-      i++
-      continue
-    }
-    if (c === '/' && n === '/') {
-      mark('comment')
-      state = 'lineComment'
-      i += 2
-      continue
-    }
-    if (c === '/' && n === '*') {
-      mark('comment')
-      state = 'blockComment'
-      i += 2
-      continue
-    }
-    if (c === "'") {
-      mark('code')
-      state = 'squote'
-      i++
-      continue
-    }
-    if (c === '"') {
-      mark('code')
-      state = 'dquote'
-      i++
-      continue
-    }
-    if (c === '`') {
-      mark('code')
-      state = 'backtick'
-      i++
-      continue
-    }
-    if (!/\s/.test(c)) mark('code')
-    i++
-  }
-  if (text.length && !text.endsWith('\n')) flushLine()
-
-  return { code, comment, blank, total: code + comment + blank }
-}
-
-function tokensOf(text) {
-  return enc.encode(text).length
-}
-
-function countPublicMembers(text, kind) {
-  if (kind === 'proto') {
-    const rpcs = [...text.matchAll(/^\s*rpc\s+(\w+)/gm)].map((m) => m[1])
-    return { kind: 'rpc', names: rpcs, count: rpcs.length }
-  }
-  if (kind === 'csharp') {
-    const names = [...text.matchAll(/public\s+(?:static\s+)?(?:async\s+)?[\w.<>,\[\]?]+\s+(\w+)\s*\(/g)]
-      .map((m) => m[1])
-      .filter((n) => n !== 'Main')
-    return { kind: 'method', names, count: names.length }
-  }
-  if (kind === 'js-client-grpc') {
-    const names = [...text.matchAll(/export async function\s+(\w+)/g)].map((m) => m[1])
-    return { kind: 'function', names, count: names.length }
-  }
-  return { kind: 'n/a', names: [], count: 0 }
-}
-
-function fileEntry(rel, bucket, extras = {}) {
-  const source = extras.source ?? read(rel)
-  const sloc = classifySource(source)
+function markerPattern(comment) {
+  const prefix = comment === '#' ? '#' : '//'
   return {
-    path: rel.replaceAll('\\', '/'),
-    bucket,
-    sloc,
-    tokens_cl100k: tokensOf(source),
-    bytes: Buffer.byteLength(source, 'utf8'),
-    ...extras.meta,
+    begin: new RegExp(`^\\s*${prefix}\\s*metrics:begin\\s+(\\S+)\\s*$`),
+    end: new RegExp(`^\\s*${prefix}\\s*metrics:end\\s+(\\S+)\\s*$`),
   }
 }
 
-function sumSloc(files) {
-  return files.reduce(
-    (acc, f) => ({
-      code: acc.code + f.sloc.code,
-      comment: acc.comment + f.sloc.comment,
-      blank: acc.blank + f.sloc.blank,
-    }),
-    { code: 0, comment: 0, blank: 0 },
-  )
-}
-
-function sumTokens(files) {
-  return files.reduce((n, f) => n + f.tokens_cl100k, 0)
-}
-
-function byBucket(files) {
-  const buckets = {}
-  for (const f of files) {
-    if (!buckets[f.bucket]) buckets[f.bucket] = []
-    buckets[f.bucket].push(f)
+function extractRegions(text, comment, file) {
+  const { begin, end } = markerPattern(comment)
+  const found = new Map()
+  let current = null
+  let body = []
+  for (const line of text.split('\n')) {
+    const opened = line.match(begin)
+    const closed = line.match(end)
+    if (opened && closed) fail(`${file}: a line is both begin and end`)
+    if (opened) {
+      if (current) fail(`${file}: nested marker ${opened[1]} inside ${current}`)
+      current = opened[1]
+      body = []
+      continue
+    }
+    if (closed) {
+      if (!current) fail(`${file}: metrics:end ${closed[1]} without begin`)
+      if (closed[1] !== current) fail(`${file}: metrics:end ${closed[1]} closes ${current}`)
+      if (found.has(current)) fail(`${file}: duplicate region ${current}`)
+      found.set(current, body.join('\n').replace(/^\n+|\n+$/g, ''))
+      current = null
+      body = []
+      continue
+    }
+    if (current) body.push(line)
   }
-  const out = {}
-  for (const [name, list] of Object.entries(buckets)) {
-    out[name] = { sloc: sumSloc(list), tokens_cl100k: sumTokens(list), files: list.map((f) => f.path) }
-  }
-  return out
+  if (current) fail(`${file}: unclosed region ${current}`)
+  return found
 }
 
-function reductionPct(from, to) {
+function countLines(text) {
+  if (!text.trim()) return 0
+  return text.split('\n').filter((line) => line.trim().length > 0).length
+}
+
+function snippetFrom(entry, source) {
+  if (!source.trim()) fail(`Region ${entry.id} is empty`)
+  return {
+    id: entry.id,
+    title: entry.title,
+    path: entry.file,
+    source,
+    lines: countLines(source),
+    tokensCl100k: cl100k.encode(source).length,
+    tokensO200k: o200k.encode(source).length,
+    ...(entry.reason ? { reason: entry.reason } : {}),
+  }
+}
+
+function assertApp(source) {
+  if (/\bfetch\s*\(/.test(source)) fail('App.jsx still contains a fetch( call. Put it in src/clients.')
+  if (source.includes('createPromiseClient')) fail('App.jsx still contains createPromiseClient.')
+  if (/\bGraftConfig\b/.test(source)) fail('App.jsx still contains GraftConfig. Put it in src/clients/graftClient.js.')
+}
+
+function sha256(text) {
+  return createHash('sha256').update(text).digest('hex')
+}
+
+const manifest = JSON.parse(read('scripts/metrics.manifest.json'))
+assertApp(read(manifest.appFile))
+
+for (const group of manifest.identicalGroups) {
+  const texts = group.map(read)
+  if (new Set(texts).size !== 1) {
+    fail(`Domain copies differ:\n${group.join('\n')}`)
+  }
+}
+
+const byFile = new Map()
+for (const region of manifest.regions) {
+  if (!byFile.has(region.file)) byFile.set(region.file, { comment: region.comment, expected: new Set(), regions: [] })
+  const group = byFile.get(region.file)
+  if (group.comment !== region.comment) fail(`${region.file}: mixed comment prefixes`)
+  group.expected.add(region.id)
+  group.regions.push(region)
+}
+
+const extracted = new Map()
+for (const [file, group] of byFile) {
+  const found = extractRegions(read(file), group.comment, file)
+  for (const id of found.keys()) {
+    if (!group.expected.has(id)) fail(`${file}: unknown marker ${id}`)
+  }
+  for (const id of group.expected) {
+    if (!found.has(id)) fail(`${file}: missing marker ${id}`)
+    extracted.set(id, found.get(id))
+  }
+}
+
+for (const entry of manifest.wholeFiles) {
+  const text = read(entry.file)
+  if (/metrics:begin|metrics:end/.test(text)) {
+    fail(`${entry.file} is a whole-file count and also contains markers`)
+  }
+  extracted.set(entry.id, text.replace(/^\n+|\n+$/g, ''))
+}
+
+for (const entry of manifest.lineSelections) {
+  const matches = read(entry.file).split('\n').filter((line) => line.includes(entry.includes))
+  if (matches.length !== 1) {
+    fail(`${entry.file}: expected one line containing ${JSON.stringify(entry.includes)}, found ${matches.length}`)
+  }
+  extracted.set(entry.id, matches[0].trim())
+}
+
+function materialize(entry) {
+  return snippetFrom(entry, extracted.get(entry.id))
+}
+
+const domain = manifest.domain.map((entry) => {
+  const source = read(entry.sourceFrom).replace(/^\n+|\n+$/g, '')
+  return {
+    id: entry.id,
+    title: entry.title,
+    scopes: entry.scopes,
+    paths: entry.paths,
+    source,
+    lines: countLines(source),
+    tokensCl100k: cl100k.encode(source).length,
+    tokensO200k: o200k.encode(source).length,
+  }
+})
+
+const catalog = [
+  ...manifest.regions,
+  ...manifest.wholeFiles,
+  ...manifest.lineSelections,
+]
+
+function snippetsFor(scope, stack, bucket) {
+  return catalog
+    .filter((entry) => entry.stack === stack && entry.bucket === bucket && entry.scopes.includes(scope))
+    .map(materialize)
+}
+
+function sum(snippets, key) {
+  return snippets.reduce((total, snippet) => total + snippet[key], 0)
+}
+
+function reduction(from, to) {
   if (!from) return null
   return Math.round(((from - to) / from) * 1000) / 10
 }
 
-function stackSummary(name, files, publicSurface) {
-  const sloc = sumSloc(files)
-  const buckets = byBucket(files)
-  const integrationClient = files.filter((f) => f.bucket === 'integration' || f.bucket === 'client')
-  const integrationClientSloc = sumSloc(integrationClient).code
-  return {
-    name,
-    publicSurface,
-    files,
-    sloc,
-    tokens_cl100k: sumTokens(files),
-    tokens_integration_plus_client_cl100k: sumTokens(integrationClient),
-    sloc_integration_plus_client: integrationClientSloc,
-    buckets,
-  }
+function times(from, to) {
+  if (!to) return null
+  return Math.round((from / to) * 10) / 10
 }
 
-function pairReductions(stacks) {
-  const keys = Object.keys(stacks)
-  const out = {}
-  for (const from of keys) {
-    for (const to of keys) {
-      if (from === to) continue
-      const a = stacks[from]
-      const b = stacks[to]
-      out[`${from}_to_${to}`] = {
-        sloc_total: reductionPct(a.sloc.code, b.sloc.code),
-        sloc_integration_plus_client: reductionPct(a.sloc_integration_plus_client, b.sloc_integration_plus_client),
-        tokens_total_cl100k: reductionPct(a.tokens_cl100k, b.tokens_cl100k),
-        tokens_integration_plus_client_cl100k: reductionPct(
-          a.tokens_integration_plus_client_cl100k,
-          b.tokens_integration_plus_client_cl100k,
-        ),
-      }
+const scopeNotes = {
+  getPrice: 'The getPrice call the benchmark runs. History, billing, and StreamPrices are not in this total.',
+  whole: 'getPrice, getPriceHistory, and the REST billing, meter, tariff, outage, and loyalty controllers. gRPC has no billing surface in this demo, so its column is the energy-price service only.',
+}
+
+const scopes = {}
+for (const scope of SCOPES) {
+  const stacks = {}
+  for (const stack of STACKS) {
+    const buckets = {}
+    for (const bucket of BUCKETS) buckets[bucket] = snippetsFor(scope, stack, bucket)
+    const counted = buckets.counted
+    stacks[stack] = {
+      name: STACK_NAMES[stack],
+      lines: sum(counted, 'lines'),
+      tokensCl100k: sum(counted, 'tokensCl100k'),
+      tokensO200k: sum(counted, 'tokensO200k'),
+      ...buckets,
     }
   }
-  return out
+  const graft = stacks.graftcode
+  const versus = {}
+  for (const stack of ['rest', 'grpc']) {
+    versus[stack] = {
+      linesPercentFewer: reduction(stacks[stack].lines, graft.lines),
+      tokensCl100kPercentFewer: reduction(stacks[stack].tokensCl100k, graft.tokensCl100k),
+      tokensO200kPercentFewer: reduction(stacks[stack].tokensO200k, graft.tokensO200k),
+      linesTimes: times(stacks[stack].lines, graft.lines),
+      tokensCl100kTimes: times(stacks[stack].tokensCl100k, graft.tokensCl100k),
+    }
+  }
+  scopes[scope] = { note: scopeNotes[scope], stacks, versus }
 }
 
-// --- EnergyPrice slice (headline) ---
+const hashedFiles = [
+  ...new Set([
+    ...manifest.regions.map((entry) => entry.file),
+    ...manifest.wholeFiles.map((entry) => entry.file),
+    ...manifest.lineSelections.map((entry) => entry.file),
+    ...manifest.identicalGroups.flat(),
+    'scripts/metrics.manifest.json',
+  ]),
+].sort()
 
-const restSliceFiles = [
-  fileEntry('official/electric-company-ws/EnergyPriceService.cs', 'domain', {
-    meta: { publicMembers: countPublicMembers(read('official/electric-company-ws/EnergyPriceService.cs'), 'csharp') },
-  }),
-  fileEntry('official/electric-company-ws/Controllers/EnergyPriceController.cs', 'integration', {
-    meta: { publicMembers: countPublicMembers(read('official/electric-company-ws/Controllers/EnergyPriceController.cs'), 'csharp') },
-  }),
-  fileEntry('official/electric-company-ws/Dtos/PriceHistoryDtos.cs', 'integration'),
-  fileEntry('official/electric-company-ws/Program.cs', 'integration', {
-    meta: { note: 'Entire Kestrel/TLS/CORS/Swagger host counted as handwritten integration.' },
-  }),
-  fileEntry('official/perf-lab/src/App.jsx', 'client', {
-    source: extractLines('official/perf-lab/src/App.jsx', [
-      [134, 134],
-      [137, 146],
-    ]),
-    meta: {
-      excerpt: 'App.jsx lines 134, 137–146 (REST fetch + JSON.parse). Lab harness (performance.now, setState) left in because it wraps the fetch.',
-    },
-  }),
-]
+const inputsHash = sha256(hashedFiles.map((file) => `${file}\n${read(file)}`).join('\n---\n'))
 
-const grpcSliceFiles = [
-  fileEntry('official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs', 'domain', {
-    meta: {
-      publicMembers: countPublicMembers(read('official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs'), 'csharp'),
-      note: 'Includes StreamPrices (gRPC-only extra). Logic is inline; no BusinessLogic.cs.',
-    },
-  }),
-  fileEntry('official/grpc-energy-price-dotnet/Protos/price.proto', 'integration', {
-    meta: { publicMembers: countPublicMembers(read('official/grpc-energy-price-dotnet/Protos/price.proto'), 'proto') },
-  }),
-  fileEntry('official/grpc-energy-price-dotnet/Program.cs', 'integration'),
-  fileEntry('official/perf-lab/src/priceProto.js', 'client'),
-  fileEntry('official/perf-lab/src/grpcClient.js', 'client', {
-    meta: { publicMembers: countPublicMembers(read('official/perf-lab/src/grpcClient.js'), 'js-client-grpc') },
-  }),
-]
-
-const graftSliceFiles = [
-  fileEntry('official/electric-company-be/EnergyPriceService.cs', 'domain', {
-    meta: { publicMembers: countPublicMembers(read('official/electric-company-be/EnergyPriceService.cs'), 'csharp') },
-  }),
-  fileEntry('official/perf-lab/src/App.jsx', 'client', {
-    source: extractLines('official/perf-lab/src/App.jsx', [
-      [3, 3],
-      [66, 83],
-      [85, 92],
-      [160, 163],
-    ]),
-    meta: {
-      excerpt: 'App.jsx lines 3 (import), 66–83 (GraftConfig), 85–92 (getPrice), 160–163 (getPriceHistory). No handwritten integration server — gg hosts the DLL.',
-    },
-  }),
-]
-
-const sliceStacks = {
-  rest: stackSummary('REST', restSliceFiles, {
-    endpoints_or_methods: ['GetPrice', 'GetHistory'],
-    count: 2,
-  }),
-  grpc: stackSummary('gRPC', grpcSliceFiles, {
-    endpoints_or_methods: ['GetPrice', 'GetPriceHistory', 'StreamPrices'],
-    count: 3,
-    extra: 'StreamPrices has no REST/Graftcode counterpart',
-  }),
-  graftcode: stackSummary('Graftcode', graftSliceFiles, {
-    endpoints_or_methods: ['GetPrice', 'GetPriceHistory'],
-    count: 2,
-  }),
+const report = {
+  inputsHash,
+  encodings: ['cl100k_base', 'o200k_base'],
+  label: 'Tokens of the handwritten integration code shown below. Not a live assistant session.',
+  domain,
+  scopes,
 }
 
-// --- Full surface appendix (not the lab call path) ---
-
-const restFullExtra = [
-  'official/electric-company-ws/BusinessLogic.cs',
-  'official/electric-company-ws/Controllers/BillingController.cs',
-  'official/electric-company-ws/Controllers/MeterController.cs',
-  'official/electric-company-ws/Controllers/TariffController.cs',
-  'official/electric-company-ws/Controllers/OutageController.cs',
-  'official/electric-company-ws/Controllers/LoyaltyController.cs',
-  'official/electric-company-ws/Dtos/BillingDtos.cs',
-  'official/electric-company-ws/Dtos/MeterDtos.cs',
-  'official/electric-company-ws/Dtos/TariffDtos.cs',
-  'official/electric-company-ws/Dtos/OutageDtos.cs',
-  'official/electric-company-ws/Dtos/LoyaltyDtos.cs',
-].map((p) => fileEntry(p, p.includes('BusinessLogic') ? 'domain' : 'integration'))
-
-const restFullFiles = [...restSliceFiles.filter((f) => f.path !== 'official/perf-lab/src/App.jsx'), ...restFullExtra]
-const graftFullFiles = [
-  fileEntry('official/electric-company-be/EnergyPriceService.cs', 'domain'),
-  fileEntry('official/electric-company-be/BusinessLogic.cs', 'domain', {
-    meta: {
-      disclaimer:
-        'Compiled into EnergyPriceService.dll and may be exported by gg; not called by EnergyPriceService or perf-lab.',
-    },
-  }),
-]
-
-const fullStacks = {
-  rest: stackSummary('REST', restFullFiles, { note: 'All controllers + DTOs + BusinessLogic + EnergyPrice slice server files. Client omitted.' }),
-  graftcode: stackSummary('Graftcode', graftFullFiles, { note: 'EnergyPriceService + unused BusinessLogic in the hosted DLL.' }),
-  grpc: { name: 'gRPC', n_a: true, reason: 'Demo implements only PriceService RPCs; no billing/meter/tariff/outage/loyalty.' },
+function stable(value) {
+  if (Array.isArray(value)) return value.map(stable)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]))
+  }
+  return value
 }
 
-const locComparison = {
-  measuredAt: now,
-  gitSha,
-  tool: {
-    sloc: 'custom cloc-style scanner in scripts/measure-integration-metrics.mjs (code vs // and /* */ comments vs blank; strings preserved)',
-    tokens: 'js-tiktoken cl100k_base (OpenAI-compatible). Proxy on committed source — not a live agent session.',
-  },
-  headline: 'energyPriceSlice',
-  tables: {
-    energyPriceSlice: {
-      description:
-        'Code on the perf-lab getPrice / getPriceHistory path. BusinessLogic.cs is excluded. StreamPrices counted only under gRPC.',
-      stacks: sliceStacks,
-      reductions: pairReductions(sliceStacks),
-      notes: [
-        'Graftcode GetPriceHistory returns double[]; REST and gRPC return PricePoint records.',
-        'gg / Kestrel binaries are not counted. Generated protoc C# under obj/ is not counted.',
-        'Graftcode integration (server) SLOC is 0 because the gateway hosts the class library; only the facade is handwritten.',
-      ],
-    },
-    fullSurface: {
-      description:
-        'APPENDIX. REST HTTP surface for billing/* vs Graftcode BusinessLogic in the DLL. Not the lab invocation path. Do not use as the page headline without the disclaimer.',
-      disclaimer: 'perf-lab does not call BillingLogic / MeterLogic / TariffLogic / OutageLogic / LoyaltyLogic.',
-      stacks: fullStacks,
-      reductions: {
-        rest_to_graftcode: {
-          sloc_total: reductionPct(fullStacks.rest.sloc.code, fullStacks.graftcode.sloc.code),
-          tokens_total_cl100k: reductionPct(fullStacks.rest.tokens_cl100k, fullStacks.graftcode.tokens_cl100k),
-        },
-      },
-    },
-  },
+const jsonText = `${JSON.stringify(stable(report), null, 2)}\n`
+
+function row(scope, stack) {
+  const item = scopes[scope].stacks[stack]
+  return `| ${item.name} | ${item.lines} | ${item.tokensCl100k} | ${item.tokensO200k} |`
 }
 
-const tokenComparison = {
-  measuredAt: now,
-  gitSha,
-  method: 'tiktoken-proxy',
-  disclaimer:
-    'estimated tokens of handwritten integration code (cl100k_base on committed files from the EnergyPrice slice). This is NOT "tokens to generate the system" from an identical prompt experiment.',
-  encoding: 'cl100k_base',
-  energyPriceSlice: {
-    rest: {
-      tokens_total: sliceStacks.rest.tokens_cl100k,
-      tokens_integration_plus_client: sliceStacks.rest.tokens_integration_plus_client_cl100k,
-    },
-    grpc: {
-      tokens_total: sliceStacks.grpc.tokens_cl100k,
-      tokens_integration_plus_client: sliceStacks.grpc.tokens_integration_plus_client_cl100k,
-    },
-    graftcode: {
-      tokens_total: sliceStacks.graftcode.tokens_cl100k,
-      tokens_integration_plus_client: sliceStacks.graftcode.tokens_integration_plus_client_cl100k,
-      note: 'T_rules (Graftcode AI rules in context) is not included; this proxy only tokenizes committed application source.',
-    },
-  },
-  reductions: pairReductions(sliceStacks),
+function versusRow(scope, stack) {
+  const item = scopes[scope].versus[stack]
+  return `| ${STACK_NAMES[stack]} → Graftcode | ${item.linesPercentFewer}% | ${item.tokensCl100kPercentFewer}% | ${item.tokensO200kPercentFewer}% |`
 }
 
-mkdirSync(outDir, { recursive: true })
-writeFileSync(join(outDir, 'loc-comparison.json'), JSON.stringify(locComparison, null, 2) + '\n')
-writeFileSync(join(outDir, 'token-comparison.json'), JSON.stringify(tokenComparison, null, 2) + '\n')
+const markdown = `# Integration metrics
 
-const s = locComparison.tables.energyPriceSlice.stacks
-const r = locComparison.tables.energyPriceSlice.reductions
-const f = locComparison.tables.fullSurface
+Generated by \`scripts/measure-integration-metrics.mjs\`. Do not edit by hand.
 
-const md = `# Integration metrics (Graftcode vs REST vs gRPC)
-
-Static, one-shot measurement. The perf-lab UI does **not** recompute these. Numbers live in
-\`loc-comparison.json\` and \`token-comparison.json\`. Re-run from \`scripts/\`:
-
-\`\`\`bash
-cd scripts && npm install && npm run measure
+\`\`\`powershell
+cd scripts
+npm ci
+npm run metrics:check
 \`\`\`
 
-- Measured at: \`${now}\`
-- Git SHA: \`${gitSha}\`
-- SLOC tool: custom cloc-style scanner (code lines; \`//\` and \`/* */\` comments and blank lines excluded)
-- Tokens: \`js-tiktoken\` **cl100k_base** on committed source (proxy, not a live prompt session)
+Inputs hash: \`${inputsHash}\`
 
-## What is counted (EnergyPrice slice — headline)
+Counted text is the source inside \`metrics:begin\` / \`metrics:end\` markers (or a whole file listed in \`scripts/metrics.manifest.json\`). Lines are non-blank lines of that text. Tokens are \`js-tiktoken\` \`cl100k_base\` and \`o200k_base\` of that same text. This is the size of handwritten integration code, not tokens spent by a live assistant.
 
-Perf-lab only calls \`getPrice\` / \`getPriceHistory\`.
+Domain files are identical across REST and Graftcode and are not counted. Transport setup, Swagger, health checks, generated code, and the hand-written \`priceProto.js\` stand-in are shown in the JSON and not counted. Dockerfiles and dependency lines are separate rows. \`StreamPrices\` is gRPC-only and is not in the shared total.
 
-| Bucket | REST | gRPC | Graftcode |
-| --- | --- | --- | --- |
-| Domain + facade | \`electric-company-ws/EnergyPriceService.cs\` | \`PriceServiceImpl.cs\` (inline RNG; includes StreamPrices) | \`electric-company-be/EnergyPriceService.cs\` |
-| Integration (server) | \`EnergyPriceController\`, \`PriceHistoryDtos\`, \`Program.cs\` | \`price.proto\`, \`Program.cs\` | none (\`gg\` hosts the DLL; binary not counted) |
-| Client | \`App.jsx\` REST fetch excerpt (lines 134, 137–146) | \`priceProto.js\` + \`grpcClient.js\` | \`App.jsx\` import + GraftConfig + calls (lines 3, 66–83, 85–92, 160–163) |
+## getPrice
 
-**Not counted:** \`node_modules\`, \`obj/\`, \`.graftcode/\`, generated Graft client, generated \`protoc\` C#, \`gg\` / Kestrel binaries, Dockerfiles, Playwright, comments, blanks.
+| Stack | Lines | cl100k tokens | o200k tokens |
+| --- | ---: | ---: | ---: |
+${STACKS.map((stack) => row('getPrice', stack)).join('\n')}
 
-**Not in the headline:** [\`official/electric-company-be/BusinessLogic.cs\`](../../../electric-company-be/BusinessLogic.cs). It is compiled into the hosted DLL and *may* be exported by the gateway, but \`EnergyPriceService\` and perf-lab never call it. REST billing controllers use a copy of that logic; the lab does not hit those endpoints. gRPC has no \`BusinessLogic\` file.
+| Comparison | Lines | cl100k | o200k |
+| --- | ---: | ---: | ---: |
+${['rest', 'grpc'].map((stack) => versusRow('getPrice', stack)).join('\n')}
 
-**Shape caveat:** Graftcode \`GetPriceHistory\` returns \`double[]\`; REST and gRPC return \`PricePoint\` records.
+Positive means Graftcode is smaller. The formula is \`(other - graftcode) / other\`.
 
-**gRPC extra:** \`StreamPrices\` has no REST/Graftcode counterpart. It is included in the gRPC column and called out, not subtracted.
+## Whole project
 
-## EnergyPrice slice results (SLOC = code lines)
+${scopeNotes.whole}
 
-| Stack | Files | SLOC | Integration+client SLOC | Tokens (all) | Tokens (integration+client) | Public methods / RPCs |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| REST | ${s.rest.files.length} | ${s.rest.sloc.code} | ${s.rest.sloc_integration_plus_client} | ${s.rest.tokens_cl100k} | ${s.rest.tokens_integration_plus_client_cl100k} | ${s.rest.publicSurface.endpoints_or_methods.join(', ')} |
-| gRPC | ${s.grpc.files.length} | ${s.grpc.sloc.code} | ${s.grpc.sloc_integration_plus_client} | ${s.grpc.tokens_cl100k} | ${s.grpc.tokens_integration_plus_client_cl100k} | ${s.grpc.publicSurface.endpoints_or_methods.join(', ')} |
-| Graftcode | ${s.graftcode.files.length} | ${s.graftcode.sloc.code} | ${s.graftcode.sloc_integration_plus_client} | ${s.graftcode.tokens_cl100k} | ${s.graftcode.tokens_integration_plus_client_cl100k} | ${s.graftcode.publicSurface.endpoints_or_methods.join(', ')} |
+| Stack | Lines | cl100k tokens | o200k tokens |
+| --- | ---: | ---: | ---: |
+${STACKS.map((stack) => row('whole', stack)).join('\n')}
 
-Headline reductions (positive = destination is smaller):
+| Comparison | Lines | cl100k | o200k |
+| --- | ---: | ---: | ---: |
+${['rest', 'grpc'].map((stack) => versusRow('whole', stack)).join('\n')}
 
-| From → to | SLOC total | SLOC integration+client | Tokens total | Tokens integration+client |
-| --- | ---: | ---: | ---: | ---: |
-| REST → Graftcode | ${r.rest_to_graftcode.sloc_total}% | ${r.rest_to_graftcode.sloc_integration_plus_client}% | ${r.rest_to_graftcode.tokens_total_cl100k}% | ${r.rest_to_graftcode.tokens_integration_plus_client_cl100k}% |
-| gRPC → Graftcode | ${r.grpc_to_graftcode.sloc_total}% | ${r.grpc_to_graftcode.sloc_integration_plus_client}% | ${r.grpc_to_graftcode.tokens_total_cl100k}% | ${r.grpc_to_graftcode.tokens_integration_plus_client_cl100k}% |
-| REST → gRPC | ${r.rest_to_grpc.sloc_total}% | ${r.rest_to_grpc.sloc_integration_plus_client}% | ${r.rest_to_grpc.tokens_total_cl100k}% | ${r.rest_to_grpc.tokens_integration_plus_client_cl100k}% |
-
-Suggested later UI copy (do not paste into \`App.jsx\` in this step): Graftcode uses **${r.rest_to_graftcode.sloc_integration_plus_client}%** less handwritten integration+client code than REST and **${r.grpc_to_graftcode.sloc_integration_plus_client}%** less than gRPC for GetPrice/GetPriceHistory.
-
-## Token proxy disclaimer
-
-\`token-comparison.json\` tokenizes the **same committed files** as the SLOC table. It is *estimated tokens of handwritten integration code*, not tokens consumed by an agent that built REST vs gRPC vs Graftcode from one prompt. Graftcode AI rules (\`rules/\`) are **not** added to T_rules here.
-
-A same-prompt experiment (see \`community/dotnet-react-frontend/seed/README.md\`) was not run.
-
-## Appendix: full surface (not the lab path)
-
-REST SLOC ${f.stacks.rest.sloc.code} vs Graftcode SLOC ${f.stacks.graftcode.sloc.code} (${f.reductions.rest_to_graftcode.sloc_total}% reduction). gRPC: ${f.stacks.grpc.reason}
-
-Do not quote this as “the same business logic the lab runs.”
+Dockerfile lines (separate from the table above): REST ${scopes.getPrice.stacks.rest.deploy[0].lines}, gRPC ${scopes.getPrice.stacks.grpc.deploy[0].lines}, Graftcode ${scopes.getPrice.stacks.graftcode.deploy[0].lines}.
 `
 
-writeFileSync(join(outDir, 'METRICS.md'), md)
+const rel = (path) => relative(repoRoot, path).replaceAll('\\', '/')
 
-const rel = (p) => relative(repoRoot, p).replaceAll('\\', '/')
-console.log('Wrote', rel(join(outDir, 'loc-comparison.json')))
-console.log('Wrote', rel(join(outDir, 'token-comparison.json')))
-console.log('Wrote', rel(join(outDir, 'METRICS.md')))
-console.log('\nSlice SLOC code:', {
-  rest: s.rest.sloc.code,
-  grpc: s.grpc.sloc.code,
-  graftcode: s.graftcode.sloc.code,
-})
-console.log('Slice integration+client SLOC:', {
-  rest: s.rest.sloc_integration_plus_client,
-  grpc: s.grpc.sloc_integration_plus_client,
-  graftcode: s.graftcode.sloc_integration_plus_client,
-})
-console.log('Reductions REST→Graftcode / gRPC→Graftcode (int+client SLOC %):', {
-  rest_to_graftcode: r.rest_to_graftcode.sloc_integration_plus_client,
-  grpc_to_graftcode: r.grpc_to_graftcode.sloc_integration_plus_client,
-})
+if (check) {
+  const problems = []
+  if (!existsSync(jsonPath) || readFileSync(jsonPath, 'utf8').replaceAll('\r\n', '\n') !== jsonText) {
+    problems.push(`${rel(jsonPath)} is out of date. Run npm run metrics:update.`)
+  }
+  if (!existsSync(mdPath) || readFileSync(mdPath, 'utf8').replaceAll('\r\n', '\n') !== markdown) {
+    problems.push(`${rel(mdPath)} is out of date. Run npm run metrics:update.`)
+  }
+  for (const path of legacy) {
+    if (existsSync(path)) problems.push(`${rel(path)} is leftover. Delete it.`)
+  }
+  if (problems.length) fail(problems.join('\n'))
+  console.log('metrics:check ok')
+  console.log(inputsHash)
+  for (const scope of SCOPES) {
+    const parts = STACKS.map((stack) => `${STACK_NAMES[stack]} ${scopes[scope].stacks[stack].lines} lines / ${scopes[scope].stacks[stack].tokensCl100k} cl100k`)
+    console.log(`${scope}: ${parts.join(' | ')}`)
+  }
+} else if (update) {
+  writeFileSync(jsonPath, jsonText)
+  writeFileSync(mdPath, markdown)
+  for (const path of legacy) {
+    if (existsSync(path)) unlinkSync(path)
+  }
+  console.log('Wrote', rel(jsonPath))
+  console.log('Wrote', rel(mdPath))
+  console.log(inputsHash)
+}

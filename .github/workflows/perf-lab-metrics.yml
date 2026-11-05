@@ -1,0 +1,42 @@
+name: perf-lab metrics
+
+on:
+  pull_request:
+    paths:
+      - 'official/**'
+      - 'scripts/**'
+      - 'rules/**'
+      - 'experiments/ai-integration/**'
+      - '.github/workflows/perf-lab-metrics.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            scripts/package-lock.json
+            experiments/ai-integration/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Check integration metrics
+        run: npm run metrics:check
+
+      - name: Check AI token cost page data
+        working-directory: experiments/ai-integration
+        run: |
+          npm ci
+          node export-page.mjs --check

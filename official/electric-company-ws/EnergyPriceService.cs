@@ -11,17 +11,17 @@ public class EnergyPriceService
         return Random.Shared.Next(1, 998);
     }
 
-    public static List<PricePointDto> GetPriceHistory(int count)
+    public static PricePointDto[] GetPriceHistory(int count)
     {
         if (count <= 0) count = 1;
         if (count > 200_000) count = 200_000;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var points = new List<PricePointDto>(count);
+        var result = new PricePointDto[count];
         for (var i = 0; i < count; i++)
         {
             var price = (double)Random.Shared.Next(1, 998);
-            points.Add(new PricePointDto
+            result[i] = new PricePointDto
             {
                 Timestamp = now - (long)i * MinuteMs,
                 Price = price,
@@ -31,8 +31,8 @@ public class EnergyPriceService
                 Currency = "EUR",
                 Region = "EU-Central",
                 Source = $"grid-meter-{i % 64}",
-            });
+            };
         }
-        return points;
+        return result;
     }
 }

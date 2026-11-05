@@ -6,6 +6,7 @@ AppContext.SetSwitch("Microsoft.AspNetCore.Server.Kestrel.Http2UnencryptedSuppor
 
 var builder = WebApplication.CreateBuilder(args);
 
+// metrics:begin grpc.host.transport
 // HTTPS + HTTP/2 on :5005, sharing the local mkcert PEM with the other services.
 // Browsers require TLS for HTTP/2, and gRPC-Web rides over it.
 var certPath = Environment.GetEnvironmentVariable("TLS_CERT")
@@ -43,7 +44,9 @@ builder.WebHost.ConfigureKestrel(options =>
         }
     });
 });
+// metrics:end grpc.host.transport
 
+// metrics:begin grpc.host.serve
 builder.Services.AddGrpc();
 builder.Services.AddCors(options =>
 {
@@ -63,6 +66,9 @@ app.UseCors("AllowAll");
 app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
 
 app.MapGrpcService<PriceServiceImpl>().EnableGrpcWeb().RequireCors("AllowAll");
+// metrics:end grpc.host.serve
+// metrics:begin grpc.host.status
 app.MapGet("/status", () => Results.Ok(new { status = "healthy" }));
+// metrics:end grpc.host.status
 
 app.Run();

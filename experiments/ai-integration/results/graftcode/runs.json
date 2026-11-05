@@ -1,0 +1,171 @@
+{
+  "arm": "graftcode",
+  "tech": "Graftcode",
+  "model": "composer-2.5",
+  "turnCap": 30,
+  "guidanceTokens": 229,
+  "prompt": "Leave every existing C# business logic file unchanged. Using Graftcode, integrate every public method so the page shows each result. Follow the project rules. Do not run any commands, installs, or builds. Only write files.",
+  "note": "Five runs of the current Graftcode rule on 5 November 2026. Earlier batches used a rule that named an image tag which does not exist and did not mention the Vite target. Cursor adds its own system prompt to every run. It raises totals and not the difference between technologies.",
+  "runs": [
+    {
+      "index": 1,
+      "startedAt": "2026-11-05T17:31:13.711Z",
+      "requestId": "cdf6f6d2-2142-4954-ac6f-197bcfba6fc8",
+      "status": "finished",
+      "durationMs": 40296,
+      "usage": {
+        "inputTokens": 105494,
+        "outputTokens": 6110,
+        "cacheReadTokens": 72384,
+        "cacheWriteTokens": 0,
+        "totalTokens": 111604
+      },
+      "turns": [
+        {
+          "inputTokens": 105494,
+          "outputTokens": 6110,
+          "cacheReadTokens": 72384,
+          "cacheWriteTokens": 0,
+          "totalTokens": 111604
+        }
+      ],
+      "result": "Integration is in place without changing any C# business logic.\n\n### `src/App.jsx`\n- Sets `GraftConfig.host` to `ws://localhost:80/ws`.\n- Imports `EnergyPriceService`, `BillingLogic`, `MeterLogic`, `TariffLogic`, `OutageLogic`, and `LoyaltyLogic` from `@graft/nuget-energypriceservice`.\n- Uses **top-level `await`** to call **all 22 public methods** once with literal numeric arguments (camelCase method names).\n- Appends each return value to **`pre#out`** (objects/arrays as JSON).\n\n### `vite.config.js`\n- `build.target` set to **`esnext`** for top-level await.\n\n### `backend/Dockerfile`\n- Multi-stage build: .NET 8 SDK publish → `graftcode/netcore:10.0`, output at `/usr/app`, port 80, `gg` serving `EnergyPriceService.dll`.\n\n### `package.json`\n- Added `@graft/nuget-energypriceservice` so the client import resolves after install.\n\n**To run:** start the backend (Docker on port 80), then `npm install` and `npm run dev` for the UI. The page lists every method result in the `<pre id=\"out\">` block when the WebSocket backend is reachable.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 0,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 2,
+      "startedAt": "2026-11-05T17:32:05.404Z",
+      "requestId": "3a595bee-6912-40a7-abc6-e3bc68a3ed04",
+      "status": "finished",
+      "durationMs": 24320,
+      "usage": {
+        "inputTokens": 69572,
+        "outputTokens": 4255,
+        "cacheReadTokens": 47232,
+        "cacheWriteTokens": 0,
+        "totalTokens": 73827
+      },
+      "turns": [
+        {
+          "inputTokens": 69572,
+          "outputTokens": 4255,
+          "cacheReadTokens": 47232,
+          "cacheWriteTokens": 0,
+          "totalTokens": 73827
+        }
+      ],
+      "result": "Integration is in place without touching any C# files.\n\n### `src/App.jsx`\n- Imports `GraftConfig` and `EnergyPriceService`, `BillingLogic`, `MeterLogic`, `TariffLogic`, `OutageLogic`, and `LoyaltyLogic` from `@graft/nuget-energypriceservice`.\n- Sets `GraftConfig.host = 'ws://localhost:80/ws'`.\n- On mount, calls **all 22 public methods** once with numeric literals (camelCase JS names) and appends each result as JSON to `pre#out`.\n- UI is only the existing heading plus `pre#out` (no forms or extra components).\n\n### `vite.config.js`\n- `build.target` is `esnext` so the Graft client’s top-level await bundles correctly.\n\n### `backend/Dockerfile`\n- .NET 8 SDK build/publish, `graftcode/netcore:10.0` runtime, output at `/usr/app`, port 80, `gg` serving `EnergyPriceService.dll`.\n\n### `package.json`\n- Added `@graft/nuget-energypriceservice` so the import resolves after you install.\n\nWhen the backend is running on port 80 and the Graft package is installed, start the Vite dev server; `pre#out` should fill with one line per method result.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 0,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 3,
+      "startedAt": "2026-11-05T17:32:39.992Z",
+      "requestId": "f89293eb-14f1-4b58-9483-2d43b638eafa",
+      "status": "finished",
+      "durationMs": 21412,
+      "usage": {
+        "inputTokens": 108799,
+        "outputTokens": 4171,
+        "cacheReadTokens": 57856,
+        "cacheWriteTokens": 0,
+        "totalTokens": 112970
+      },
+      "turns": [
+        {
+          "inputTokens": 108799,
+          "outputTokens": 4171,
+          "cacheReadTokens": 57856,
+          "cacheWriteTokens": 0,
+          "totalTokens": 112970
+        }
+      ],
+      "result": "Integration is in place per the project rules. C# business logic was not modified.\n\n### `src/App.jsx`\n- Imports `GraftConfig` and all logic types from `@graft/nuget-energypriceservice`\n- Sets `GraftConfig.host = 'ws://localhost:80/ws'`\n- Uses top-level `await` to call **every public method once** (20 calls) with numeric literals\n- Renders only `<main>`, `<h1>`, and `<pre id=\"out\">` with each result (objects/arrays as JSON, separated by blank lines)\n\n| Class | Methods wired |\n|--------|----------------|\n| `EnergyPriceService` | `getPrice`, `getPriceHistory` |\n| `BillingLogic` | `calculateMonthlyBill`, `applyLateFee`, `calculateTax`, `isBudgetBillingEligible` |\n| `MeterLogic` | `netConsumptionKWh`, `isReadingValid`, `estimateAverageDailyUsage`, `projectNextCycleUsageKWh` |\n| `TariffLogic` | `determineTier`, `calculateTieredCost`, `applyTimeOfUseAdjustment` |\n| `OutageLogic` | `isRebateEligible`, `calculateOutageRebate`, `estimateRestorationTimeMinutes` |\n| `LoyaltyLogic` | `calculateLoyaltyDiscountPercent`, `isVipEligible`, `rewardPointsForUsage`, `applyLoyaltyDiscount` |\n\n### `vite.config.js`\n- `build.target` set to `'esnext'` for top-level await in the generated client\n\n### `backend/Dockerfile`\n- .NET 8 SDK build/publish, `graftcode/netcore:10.0` runtime, output at `/usr/app`, port 80, `gg` with `EnergyPriceService.dll`\n\nWhen the Graft backend is running on port 80 and `@graft/nuget-energypriceservice` is installed, start the Vite app to see all method results in `#out`.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 0,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 4,
+      "startedAt": "2026-11-05T17:33:11.105Z",
+      "requestId": "1ac91591-ffbc-4769-8659-cd0957701e3e",
+      "status": "finished",
+      "durationMs": 21241,
+      "usage": {
+        "inputTokens": 82355,
+        "outputTokens": 4759,
+        "cacheReadTokens": 50080,
+        "cacheWriteTokens": 0,
+        "totalTokens": 87114
+      },
+      "turns": [
+        {
+          "inputTokens": 82355,
+          "outputTokens": 4759,
+          "cacheReadTokens": 50080,
+          "cacheWriteTokens": 0,
+          "totalTokens": 87114
+        }
+      ],
+      "result": "Here is what was added and how it fits the Graftcode rules.\n\n### `src/App.jsx`\n- Imports `GraftConfig` and all logic types from `@graft/nuget-energypriceservice` (`EnergyPriceService`, `BillingLogic`, `MeterLogic`, `TariffLogic`, `OutageLogic`, `LoyaltyLogic`).\n- Sets `GraftConfig.host = 'ws://localhost:80/ws'`.\n- After mount, calls **every public method** once with numeric literals (22 calls total). C# names are used in camelCase on the client.\n- Each return value is written as a new line on `pre#out` (objects/arrays via `JSON.stringify`).\n- UI stays minimal: heading plus `pre#out` only—no forms or extra components.\n\n### `vite.config.js`\n- `build.target` is set to `esnext` so the generated client’s top-level `await` is supported.\n\n### `backend/Dockerfile`\n- Multi-stage build: .NET 8 SDK publish → `graftcode/netcore:10.0`, output at `/usr/app`, port 80, `gg` serving `EnergyPriceService.dll`.\n\nAll C# sources under `backend/` were left unchanged.\n\nWhen the backend is running on port 80 and `@graft/nuget-energypriceservice` is installed, start the Vite dev server; `pre#out` should fill with one line per method result.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 0,
+        "buildFailures": []
+      }
+    },
+    {
+      "index": 5,
+      "startedAt": "2026-11-05T17:33:38.234Z",
+      "requestId": "11eb8ae9-3436-47a8-bccd-dce1fed59fde",
+      "status": "finished",
+      "durationMs": 24072,
+      "usage": {
+        "inputTokens": 70797,
+        "outputTokens": 4336,
+        "cacheReadTokens": 42752,
+        "cacheWriteTokens": 0,
+        "totalTokens": 75133
+      },
+      "turns": [
+        {
+          "inputTokens": 70797,
+          "outputTokens": 4336,
+          "cacheReadTokens": 42752,
+          "cacheWriteTokens": 0,
+          "totalTokens": 75133
+        }
+      ],
+      "result": "Integrated Graftcode per project rules. C# sources were not modified.\n\n### `src/App.jsx`\n- Sets `GraftConfig.host` to `ws://localhost:80/ws`\n- Imports `GraftConfig` and all six exported types from `@graft/nuget-energypriceservice`\n- On mount, **awaits every public method once** with literal numeric arguments (camelCase JS names)\n- Appends each result to `<pre id=\"out\">` (objects/arrays as JSON)\n- UI is only the existing heading plus the output `<pre>` — no forms or extra components\n\n**Methods wired (20):** `EnergyPriceService` (2), `BillingLogic` (4), `MeterLogic` (4), `TariffLogic` (3), `OutageLogic` (3), `LoyaltyLogic` (4)\n\n### `vite.config.js`\n- `build.target: 'esnext'` for top-level await in the generated client\n\n### `backend/Dockerfile`\n- .NET 8 SDK build/publish → `graftcode/netcore:10.0`, output at `/usr/app`, port 80, `gg` serving `EnergyPriceService.dll`\n\nEnsure `@graft/nuget-energypriceservice` is in your dependencies and the backend container is listening on port 80 before running the UI.",
+      "error": null,
+      "acceptance": {
+        "pass": true,
+        "reason": "all 20 methods wired, backend builds",
+        "missingMethods": [],
+        "routes": 0,
+        "buildFailures": []
+      }
+    }
+  ]
+}

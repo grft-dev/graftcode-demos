@@ -22,9 +22,19 @@ Many sequential `getPrice` calls per path (REST, gRPC unary, gRPC stream, Graftc
 
 Extrapolates measured per-call time from the sequential benchmark to annual cost savings.
 
-### Static integration metrics (SLOC / tokens)
+### Code and AI token cost
 
-See [src/metrics/METRICS.md](src/metrics/METRICS.md).
+Shows the tokens Cursor's agent spent to connect the same 20 C# methods to a React page. Both agents read the same C# and neither was given a method list. REST's rule asks for a request type and a response type per method, one C# type per file. Across 8 runs its median was 164,133 tokens. Graftcode direct calls, 5 runs of the current rule, were 87,114, which is 46.9% fewer. The business logic was unchanged in both.
+
+The section reads [src/metrics/ai-token-cost.json](src/metrics/ai-token-cost.json). [experiments/ai-integration](../../experiments/ai-integration/README.md) writes it from the recorded runs and the two example results, and has the starter project, rules, and scripts to try it yourself:
+
+```bash
+cd experiments/ai-integration
+npm ci
+node export-page.mjs --check
+```
+
+The static line and tokenizer counts for `getPrice` are still checked by `cd scripts && npm ci && npm run metrics:check`. See [src/metrics/METRICS.md](src/metrics/METRICS.md).
 
 ## Environment variables
 

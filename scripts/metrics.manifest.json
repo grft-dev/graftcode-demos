@@ -1,0 +1,111 @@
+{
+  "appFile": "official/perf-lab/src/App.jsx",
+  "identicalGroups": [
+    [
+      "official/electric-company-ws/EnergyPriceService.cs",
+      "official/electric-company-be/EnergyPriceService.cs"
+    ],
+    [
+      "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+      "official/electric-company-be/PricePointDto.cs"
+    ],
+    [
+      "official/electric-company-ws/BusinessLogic.cs",
+      "official/electric-company-be/BusinessLogic.cs"
+    ]
+  ],
+  "domain": [
+    {
+      "id": "domain.energyPrice",
+      "title": "EnergyPriceService.cs",
+      "scopes": ["getPrice", "whole"],
+      "paths": [
+        "official/electric-company-ws/EnergyPriceService.cs",
+        "official/electric-company-be/EnergyPriceService.cs"
+      ],
+      "sourceFrom": "official/electric-company-be/EnergyPriceService.cs"
+    },
+    {
+      "id": "domain.pricePoint",
+      "title": "PricePointDto.cs",
+      "scopes": ["whole"],
+      "paths": [
+        "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+        "official/electric-company-be/PricePointDto.cs"
+      ],
+      "sourceFrom": "official/electric-company-be/PricePointDto.cs"
+    },
+    {
+      "id": "domain.businessLogic",
+      "title": "BusinessLogic.cs",
+      "scopes": ["whole"],
+      "paths": [
+        "official/electric-company-ws/BusinessLogic.cs",
+        "official/electric-company-be/BusinessLogic.cs"
+      ],
+      "sourceFrom": "official/electric-company-be/BusinessLogic.cs"
+    }
+  ],
+  "regions": [
+    {"id": "rest.getPrice.client", "file": "official/perf-lab/src/clients/restClient.js", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "fetchEnergyPrice"},
+    {"id": "rest.history.client", "file": "official/perf-lab/src/clients/restClient.js", "comment": "//", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "fetchEnergyPriceHistory"},
+    {"id": "rest.getPrice.controller", "file": "official/electric-company-ws/Controllers/EnergyPriceController.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "GET /api/EnergyPrice/price"},
+    {"id": "rest.history.controller", "file": "official/electric-company-ws/Controllers/EnergyPriceController.cs", "comment": "//", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "GET /api/EnergyPrice/history"},
+    {"id": "rest.host.controllers", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "AddControllers"},
+    {"id": "rest.host.cors", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "CORS policy"},
+    {"id": "rest.host.map", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "Map controllers"},
+    {"id": "rest.host.transport", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "Kestrel, TLS, HTTP version", "reason": "Transport tuning. Graftcode's gateway binary is left out the same way."},
+    {"id": "rest.host.swagger", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "Swagger services", "reason": "Optional API explorer, not required to call getPrice."},
+    {"id": "rest.host.swagger-ui", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "Swagger UI", "reason": "Optional API explorer, not required to call getPrice."},
+    {"id": "rest.host.status", "file": "official/electric-company-ws/Program.cs", "comment": "//", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "/status health check", "reason": "Probe endpoint, not part of the price call."},
+
+    {"id": "grpc.proto.header", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "price.proto header"},
+    {"id": "grpc.proto.footer", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "service closing brace"},
+    {"id": "grpc.getPrice.rpc", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "rpc GetPrice"},
+    {"id": "grpc.getPrice.messages", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "GetPrice messages"},
+    {"id": "grpc.history.rpc", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["whole"], "bucket": "counted", "title": "rpc GetPriceHistory"},
+    {"id": "grpc.history.messages", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["whole"], "bucket": "counted", "title": "GetPriceHistory messages"},
+    {"id": "grpc.stream.rpc", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "extra", "title": "rpc StreamPrices", "reason": "gRPC-only. No REST or Graftcode counterpart, so it is not in the shared total."},
+    {"id": "grpc.stream.messages", "file": "official/grpc-energy-price-dotnet/Protos/price.proto", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "extra", "title": "StreamPrices request", "reason": "gRPC-only. PricePoint itself is counted with GetPriceHistory."},
+    {"id": "grpc.getPrice.method", "file": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "GetPrice override"},
+    {"id": "grpc.history.method", "file": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs", "comment": "//", "stack": "grpc", "scopes": ["whole"], "bucket": "counted", "title": "GetPriceHistory override"},
+    {"id": "grpc.stream.method", "file": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "extra", "title": "StreamPrices override", "reason": "gRPC-only. Not in the shared total."},
+    {"id": "grpc.domain.helpers", "file": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "domain", "title": "Price point helpers", "reason": "Same pricing logic as EnergyPriceService. Shown, not counted."},
+    {"id": "grpc.host.serve", "file": "official/grpc-energy-price-dotnet/Program.cs", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "gRPC-Web host wiring"},
+    {"id": "grpc.host.transport", "file": "official/grpc-energy-price-dotnet/Program.cs", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "Kestrel, TLS, HTTP version", "reason": "Transport tuning. Graftcode's gateway binary is left out the same way."},
+    {"id": "grpc.host.status", "file": "official/grpc-energy-price-dotnet/Program.cs", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "/status health check", "reason": "Probe endpoint, not part of the price call."},
+    {"id": "grpc.getPrice.client", "file": "official/perf-lab/src/clients/grpcClient.js", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "callGrpcGetPrice"},
+    {"id": "grpc.history.client", "file": "official/perf-lab/src/clients/grpcClient.js", "comment": "//", "stack": "grpc", "scopes": ["whole"], "bucket": "counted", "title": "callGrpcGetPriceHistory"},
+    {"id": "grpc.stream.client", "file": "official/perf-lab/src/clients/grpcClient.js", "comment": "//", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "extra", "title": "streamGrpcPrices", "reason": "gRPC-only. Not in the shared total."},
+
+    {"id": "graft.getPrice.client", "file": "official/perf-lab/src/clients/graftClient.js", "comment": "//", "stack": "graftcode", "scopes": ["getPrice", "whole"], "bucket": "counted", "title": "configure host and getPrice"},
+    {"id": "graft.history.client", "file": "official/perf-lab/src/clients/graftClient.js", "comment": "//", "stack": "graftcode", "scopes": ["whole"], "bucket": "counted", "title": "getPriceHistory"},
+
+    {"id": "rest.deploy.dockerfile", "file": "official/electric-company-ws/Dockerfile", "comment": "#", "stack": "rest", "scopes": ["getPrice", "whole"], "bucket": "deploy", "title": "REST Dockerfile"},
+    {"id": "grpc.deploy.dockerfile", "file": "official/grpc-energy-price-dotnet/Dockerfile", "comment": "#", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "deploy", "title": "gRPC Dockerfile"},
+    {"id": "graft.deploy.dockerfile", "file": "official/electric-company-be/Dockerfile", "comment": "#", "stack": "graftcode", "scopes": ["getPrice", "whole"], "bucket": "deploy", "title": "Graftcode Dockerfile"}
+  ],
+  "wholeFiles": [
+    {"id": "rest.billing.controller", "file": "official/electric-company-ws/Controllers/BillingController.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "BillingController.cs"},
+    {"id": "rest.meter.controller", "file": "official/electric-company-ws/Controllers/MeterController.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "MeterController.cs"},
+    {"id": "rest.tariff.controller", "file": "official/electric-company-ws/Controllers/TariffController.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "TariffController.cs"},
+    {"id": "rest.outage.controller", "file": "official/electric-company-ws/Controllers/OutageController.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "OutageController.cs"},
+    {"id": "rest.loyalty.controller", "file": "official/electric-company-ws/Controllers/LoyaltyController.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "LoyaltyController.cs"},
+    {"id": "rest.billing.dtos", "file": "official/electric-company-ws/Dtos/BillingDtos.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "BillingDtos.cs"},
+    {"id": "rest.meter.dtos", "file": "official/electric-company-ws/Dtos/MeterDtos.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "MeterDtos.cs"},
+    {"id": "rest.tariff.dtos", "file": "official/electric-company-ws/Dtos/TariffDtos.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "TariffDtos.cs"},
+    {"id": "rest.outage.dtos", "file": "official/electric-company-ws/Dtos/OutageDtos.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "OutageDtos.cs"},
+    {"id": "rest.loyalty.dtos", "file": "official/electric-company-ws/Dtos/LoyaltyDtos.cs", "stack": "rest", "scopes": ["whole"], "bucket": "counted", "title": "LoyaltyDtos.cs"},
+    {"id": "grpc.codegen.priceProto", "file": "official/perf-lab/src/priceProto.js", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "excluded", "title": "priceProto.js", "reason": "Hand-written stand-in for protoc output. The .proto is the counted contract. Generated C# and the Graft package are omitted the same way."}
+  ],
+  "lineSelections": [
+    {"id": "graft.dependency.package", "file": "official/perf-lab/package.json", "includes": "@graft/nuget-energypriceservice", "stack": "graftcode", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "package.json"},
+    {"id": "graft.dependency.registry", "file": "official/perf-lab/.npmrc.example", "includes": "@graft:registry=", "stack": "graftcode", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": ".npmrc.example registry"},
+    {"id": "grpc.dependency.aspnet", "file": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj", "includes": "Grpc.AspNetCore\"", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "Grpc.AspNetCore"},
+    {"id": "grpc.dependency.web", "file": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj", "includes": "Grpc.AspNetCore.Web", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "Grpc.AspNetCore.Web"},
+    {"id": "grpc.dependency.proto", "file": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj", "includes": "Protobuf Include", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "Protobuf item"},
+    {"id": "grpc.dependency.protobufjs", "file": "official/perf-lab/package.json", "includes": "@bufbuild/protobuf", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "@bufbuild/protobuf"},
+    {"id": "grpc.dependency.connect", "file": "official/perf-lab/package.json", "includes": "\"@connectrpc/connect\"", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "@connectrpc/connect"},
+    {"id": "grpc.dependency.connectweb", "file": "official/perf-lab/package.json", "includes": "@connectrpc/connect-web", "stack": "grpc", "scopes": ["getPrice", "whole"], "bucket": "dependency", "title": "@connectrpc/connect-web"}
+  ]
+}

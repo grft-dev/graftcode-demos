@@ -6,14 +6,15 @@ namespace EnergyPriceGrpc.Services;
 // gRPC-vs-REST comparison apples-to-apples (same runtime as electric-company-ws).
 public class PriceServiceImpl : PriceService.PriceServiceBase
 {
-    private const long MinuteMs = 60_000;
-
+    // metrics:begin grpc.getPrice.method
     public override Task<GetPriceResponse> GetPrice(GetPriceRequest request, ServerCallContext context)
     {
         var price = Random.Shared.Next(1, 998);
         return Task.FromResult(new GetPriceResponse { Price = price });
     }
+    // metrics:end grpc.getPrice.method
 
+    // metrics:begin grpc.history.method
     // Large payload: build `count` points and return them in one message.
     public override Task<GetPriceHistoryResponse> GetPriceHistory(
         GetPriceHistoryRequest request, ServerCallContext context)
@@ -27,7 +28,9 @@ public class PriceServiceImpl : PriceService.PriceServiceBase
         }
         return Task.FromResult(response);
     }
+    // metrics:end grpc.history.method
 
+    // metrics:begin grpc.stream.method
     // Server streaming: emit `count` points one at a time over one HTTP/2 stream.
     public override async Task StreamPrices(
         StreamPricesRequest request, IServerStreamWriter<PricePoint> responseStream, ServerCallContext context)
@@ -39,6 +42,10 @@ public class PriceServiceImpl : PriceService.PriceServiceBase
             await responseStream.WriteAsync(MakePoint(i, now));
         }
     }
+    // metrics:end grpc.stream.method
+
+    // metrics:begin grpc.domain.helpers
+    private const long MinuteMs = 60_000;
 
     private static int Clamp(int count) => count <= 0 ? 1 : Math.Min(count, 200_000);
 
@@ -57,4 +64,5 @@ public class PriceServiceImpl : PriceService.PriceServiceBase
             Source = $"grid-meter-{i % 64}",
         };
     }
+    // metrics:end grpc.domain.helpers
 }

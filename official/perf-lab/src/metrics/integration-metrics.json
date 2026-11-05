@@ -1,0 +1,1021 @@
+{
+  "domain": [
+    {
+      "id": "domain.energyPrice",
+      "lines": 33,
+      "paths": [
+        "official/electric-company-ws/EnergyPriceService.cs",
+        "official/electric-company-be/EnergyPriceService.cs"
+      ],
+      "scopes": [
+        "getPrice",
+        "whole"
+      ],
+      "source": "﻿using EnergyPriceService.Dtos;\n\nnamespace EnergyPriceService;\n\npublic class EnergyPriceService\n{\n    private const long MinuteMs = 60_000;\n\n    public static double GetPrice()\n    {\n        return Random.Shared.Next(1, 998);\n    }\n\n    public static PricePointDto[] GetPriceHistory(int count)\n    {\n        if (count <= 0) count = 1;\n        if (count > 200_000) count = 200_000;\n\n        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();\n        var result = new PricePointDto[count];\n        for (var i = 0; i < count; i++)\n        {\n            var price = (double)Random.Shared.Next(1, 998);\n            result[i] = new PricePointDto\n            {\n                Timestamp = now - (long)i * MinuteMs,\n                Price = price,\n                Low = price * 0.9,\n                High = price * 1.1,\n                Average = price,\n                Currency = \"EUR\",\n                Region = \"EU-Central\",\n                Source = $\"grid-meter-{i % 64}\",\n            };\n        }\n        return result;\n    }\n}",
+      "title": "EnergyPriceService.cs",
+      "tokensCl100k": 243,
+      "tokensO200k": 246
+    },
+    {
+      "id": "domain.pricePoint",
+      "lines": 13,
+      "paths": [
+        "official/electric-company-ws/Dtos/PriceHistoryDtos.cs",
+        "official/electric-company-be/PricePointDto.cs"
+      ],
+      "scopes": [
+        "whole"
+      ],
+      "source": "namespace EnergyPriceService.Dtos;\n\n// Same shape as REST (electric-company-ws) and gRPC PricePoint for fair large-payload comparison.\npublic class PricePointDto\n{\n    public long Timestamp { get; set; }\n    public double Price { get; set; }\n    public double Low { get; set; }\n    public double High { get; set; }\n    public double Average { get; set; }\n    public string Currency { get; set; } = \"EUR\";\n    public string Region { get; set; } = \"EU-Central\";\n    public string Source { get; set; } = \"\";\n}",
+      "title": "PricePointDto.cs",
+      "tokensCl100k": 130,
+      "tokensO200k": 129
+    },
+    {
+      "id": "domain.businessLogic",
+      "lines": 153,
+      "paths": [
+        "official/electric-company-ws/BusinessLogic.cs",
+        "official/electric-company-be/BusinessLogic.cs"
+      ],
+      "scopes": [
+        "whole"
+      ],
+      "source": "namespace EnergyPriceService;\n\npublic static class BillingLogic\n{\n    public static double CalculateMonthlyBill(double usageKWh, double baseRatePerKWh, double taxRatePercent)\n    {\n        if (usageKWh < 0) usageKWh = 0;\n        if (baseRatePerKWh < 0) baseRatePerKWh = 0;\n        if (taxRatePercent < 0) taxRatePercent = 0;\n\n        var subtotal = (double)usageKWh * baseRatePerKWh;\n        var tax = subtotal * (taxRatePercent / 100.0);\n        var total = subtotal + tax;\n        return total < 0 ? 0 : total;\n    }\n\n    public static double ApplyLateFee(double currentAmount, int daysLate, double dailyRatePercent)\n    {\n        if (currentAmount <= 0 || daysLate <= 0 || dailyRatePercent <= 0) return currentAmount < 0 ? 0 : currentAmount;\n        var multiplier = 1.0 + (dailyRatePercent / 100.0) * (daysLate <= 0 ? 0 : daysLate);\n        var result = currentAmount * multiplier;\n        return result < 0 ? 0 : result;\n    }\n\n    public static double CalculateTax(double amount, double taxRatePercent)\n    {\n        if (amount <= 0 || taxRatePercent <= 0) return 0;\n        var tax = amount * (taxRatePercent / 100.0);\n        return tax < 0 ? 0 : tax;\n    }\n\n    public static bool IsBudgetBillingEligible(double averageMonthlyUsageKWh, double thresholdKWh)\n    {\n        if (averageMonthlyUsageKWh < 0 || thresholdKWh < 0) return false;\n        return averageMonthlyUsageKWh >= thresholdKWh;\n    }\n}\n\npublic static class MeterLogic\n{\n    public static int NetConsumptionKWh(int previousReadingKWh, int currentReadingKWh)\n    {\n        var diff = currentReadingKWh - previousReadingKWh;\n        return diff < 0 ? 0 : diff;\n    }\n\n    public static bool IsReadingValid(int previousReadingKWh, int currentReadingKWh, int maxAllowedJumpKWh)\n    {\n        if (previousReadingKWh < 0 || currentReadingKWh < 0 || maxAllowedJumpKWh < 0) return false;\n        if (currentReadingKWh < previousReadingKWh) return false;\n        return (currentReadingKWh - previousReadingKWh) <= maxAllowedJumpKWh;\n    }\n\n    public static double EstimateAverageDailyUsage(double usageKWh, int days)\n    {\n        if (usageKWh <= 0 || days <= 0) return 0;\n        return usageKWh / days;\n    }\n\n    public static int ProjectNextCycleUsageKWh(int recentAvgDailyKWh, int daysInCycle)\n    {\n        if (recentAvgDailyKWh < 0 || daysInCycle <= 0) return 0;\n        var projected = recentAvgDailyKWh * daysInCycle;\n        return projected < 0 ? 0 : projected;\n    }\n}\n\npublic static class TariffLogic\n{\n    public static int DetermineTier(double usageKWh, double tier1ThresholdKWh, double tier2ThresholdKWh)\n    {\n        if (usageKWh < 0) return 0;\n        if (usageKWh <= tier1ThresholdKWh) return 1;\n        if (usageKWh <= tier2ThresholdKWh) return 2;\n        return 3;\n    }\n\n    public static double CalculateTieredCost(double usageKWh, double baseRate, double tier1ThresholdKWh, double tier1Rate, double tier2ThresholdKWh, double tier2Rate, double tier3Rate)\n    {\n        if (usageKWh <= 0) return 0;\n        if (baseRate < 0 || tier1Rate < 0 || tier2Rate < 0 || tier3Rate < 0) return 0;\n\n        double cost = 0;\n        double remaining = usageKWh;\n\n        double tier1Qty = remaining <= tier1ThresholdKWh ? remaining : tier1ThresholdKWh;\n        cost += (double)tier1Qty * (baseRate + tier1Rate);\n        remaining -= tier1Qty;\n\n        if (remaining > 0)\n        {\n            double tier2Band = tier2ThresholdKWh - tier1ThresholdKWh;\n            double tier2Qty = remaining <= tier2Band ? remaining : tier2Band;\n            cost += (double)tier2Qty * (baseRate + tier2Rate);\n            remaining -= tier2Qty;\n        }\n\n        if (remaining > 0)\n        {\n            cost += (double)remaining * (baseRate + tier3Rate);\n        }\n\n        return cost < 0 ? 0 : cost;\n    }\n\n    public static double ApplyTimeOfUseAdjustment(double baseAmount, int peakHoursUsed, int offPeakHoursUsed, double peakMultiplier, double offPeakMultiplier)\n    {\n        if (baseAmount <= 0) return 0;\n        if (peakHoursUsed < 0 || offPeakHoursUsed < 0) return baseAmount;\n\n        var totalHours = peakHoursUsed + offPeakHoursUsed;\n        if (totalHours <= 0) return baseAmount;\n\n        var peakPortion = (double)peakHoursUsed / totalHours;\n        var offPeakPortion = (double)offPeakHoursUsed / totalHours;\n        var adjusted = baseAmount * (peakPortion * peakMultiplier + offPeakPortion * offPeakMultiplier);\n        return adjusted < 0 ? 0 : adjusted;\n    }\n}\n\npublic static class OutageLogic\n{\n    public static bool IsRebateEligible(int outageMinutes, int eligibilityThresholdMinutes)\n    {\n        if (outageMinutes < 0 || eligibilityThresholdMinutes <= 0) return false;\n        return outageMinutes >= eligibilityThresholdMinutes;\n    }\n\n    public static double CalculateOutageRebate(double monthlyBillAmount, int outageMinutes, int minutesPerCredit, double creditPerUnit)\n    {\n        if (monthlyBillAmount <= 0 || outageMinutes <= 0 || minutesPerCredit <= 0 || creditPerUnit <= 0) return 0;\n        var units = outageMinutes / minutesPerCredit;\n        var rebate = units * creditPerUnit;\n        if (rebate > monthlyBillAmount) rebate = monthlyBillAmount;\n        return rebate < 0 ? 0 : rebate;\n    }\n\n    public static int EstimateRestorationTimeMinutes(int baseRepairMinutes, int crewCount, int severityLevel)\n    {\n        if (baseRepairMinutes <= 0 || crewCount <= 0 || severityLevel <= 0) return 0;\n        var adjusted = (baseRepairMinutes * severityLevel) / crewCount;\n        return adjusted < 0 ? 0 : adjusted;\n    }\n}\n\npublic static class LoyaltyLogic\n{\n    public static double CalculateLoyaltyDiscountPercent(int yearsAsCustomer, int onTimePaymentCount)\n    {\n        if (yearsAsCustomer < 0 || onTimePaymentCount < 0) return 0;\n        var yearsFactor = yearsAsCustomer * 0.5;\n        var paymentsFactor = onTimePaymentCount * 0.1;\n        var total = yearsFactor + paymentsFactor;\n        if (total > 20.0) total = 20.0;\n        if (total < 0.0) total = 0.0;\n        return total;\n    }\n\n    public static bool IsVipEligible(int yearsAsCustomer, double averageMonthlyBillAmount)\n    {\n        if (yearsAsCustomer < 0 || averageMonthlyBillAmount < 0) return false;\n        return yearsAsCustomer >= 5 && averageMonthlyBillAmount >= 200.0;\n    }\n\n    public static int RewardPointsForUsage(double usageKWh)\n    {\n        if (usageKWh <= 0) return 0;\n        var points = (int)(usageKWh / 10.0);\n        return points < 0 ? 0 : points;\n    }\n\n    public static double ApplyLoyaltyDiscount(double amount, double discountPercent)\n    {\n        if (amount <= 0 || discountPercent <= 0) return amount < 0 ? 0 : amount;\n        if (discountPercent > 100.0) discountPercent = 100.0;\n        var discounted = amount * (1.0 - discountPercent / 100.0);\n        return discounted < 0 ? 0 : discounted;\n    }\n}",
+      "title": "BusinessLogic.cs",
+      "tokensCl100k": 1807,
+      "tokensO200k": 1797
+    }
+  ],
+  "encodings": [
+    "cl100k_base",
+    "o200k_base"
+  ],
+  "inputsHash": "e97fda4e28860c4ee336ebf795a49b0f685476beabace27b2a9c608f49d0bfd1",
+  "label": "Tokens of the handwritten integration code shown below. Not a live assistant session.",
+  "scopes": {
+    "getPrice": {
+      "note": "The getPrice call the benchmark runs. History, billing, and StreamPrices are not in this total.",
+      "stacks": {
+        "graftcode": {
+          "counted": [
+            {
+              "id": "graft.getPrice.client",
+              "lines": 7,
+              "path": "official/perf-lab/src/clients/graftClient.js",
+              "source": "export function configureGraftHost(host) {\n  GraftConfig.host = host\n  GraftConfig.stateless = true\n}\n\nexport function graftGetPrice() {\n  return EnergyPriceService.getPrice()\n}",
+              "title": "configure host and getPrice",
+              "tokensCl100k": 42,
+              "tokensO200k": 43
+            }
+          ],
+          "dependency": [
+            {
+              "id": "graft.dependency.package",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@graft/nuget-energypriceservice\": \"1.3.0\",",
+              "title": "package.json",
+              "tokensCl100k": 17,
+              "tokensO200k": 18
+            },
+            {
+              "id": "graft.dependency.registry",
+              "lines": 1,
+              "path": "official/perf-lab/.npmrc.example",
+              "source": "@graft:registry=https://grft.dev/6d44e8fa-78dc-4f89-b04f-8f0161172d31__free",
+              "title": ".npmrc.example registry",
+              "tokensCl100k": 37,
+              "tokensO200k": 36
+            }
+          ],
+          "deploy": [
+            {
+              "id": "graft.deploy.dockerfile",
+              "lines": 23,
+              "path": "official/electric-company-be/Dockerfile",
+              "source": "FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nWORKDIR /src\n\nCOPY EnergyPriceService.csproj ./\nRUN dotnet restore ./EnergyPriceService.csproj\n\nCOPY . ./\nRUN dotnet publish ./EnergyPriceService.csproj -c Release -o /app/publish\n\nFROM mcr.microsoft.com/dotnet/aspnet:9.0\n\n# Pin at build time with --build-arg GG_VERSION=v1.x.x or leave empty for /releases/latest.\nARG GG_VERSION=\nRUN mkdir -p /usr/app \\\n    && apt-get update \\\n    && apt-get install -y wget ca-certificates \\\n    && if [ -n \"$GG_VERSION\" ]; then \\\n         wget -O /usr/app/gg.deb \"https://github.com/grft-dev/graftcode-gateway/releases/download/${GG_VERSION}/gg_linux_amd64.deb\"; \\\n       else \\\n         wget -O /usr/app/gg.deb \"https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb\"; \\\n       fi \\\n    && dpkg -i /usr/app/gg.deb \\\n    && rm /usr/app/gg.deb \\\n    && apt-get clean \\\n    && rm -rf /var/lib/apt/lists/*\n\nCOPY --from=build /app/publish/ /usr/app/\n\nCMD [\"gg\", \"--runtime\", \"netcore\", \"--modules\", \"/usr/app/EnergyPriceService.dll\", \"--port\", \"81\", \"--httpPort\", \"5001\"]",
+              "title": "Graftcode Dockerfile",
+              "tokensCl100k": 319,
+              "tokensO200k": 326
+            }
+          ],
+          "domain": [],
+          "excluded": [],
+          "extra": [],
+          "lines": 7,
+          "name": "Graftcode",
+          "tokensCl100k": 42,
+          "tokensO200k": 43
+        },
+        "grpc": {
+          "counted": [
+            {
+              "id": "grpc.proto.header",
+              "lines": 4,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "syntax = \"proto3\";\n\noption csharp_namespace = \"EnergyPriceGrpc\";\n\npackage energyprice;\n\nservice PriceService {",
+              "title": "price.proto header",
+              "tokensCl100k": 25,
+              "tokensO200k": 24
+            },
+            {
+              "id": "grpc.proto.footer",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "}",
+              "title": "service closing brace",
+              "tokensCl100k": 1,
+              "tokensO200k": 1
+            },
+            {
+              "id": "grpc.getPrice.rpc",
+              "lines": 2,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "  // Trivial unary call (single number) — used by the benchmark.\n  rpc GetPrice(GetPriceRequest) returns (GetPriceResponse);",
+              "title": "rpc GetPrice",
+              "tokensCl100k": 30,
+              "tokensO200k": 30
+            },
+            {
+              "id": "grpc.getPrice.messages",
+              "lines": 4,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "message GetPriceRequest {}\n\nmessage GetPriceResponse {\n  double price = 1;\n}",
+              "title": "GetPrice messages",
+              "tokensCl100k": 18,
+              "tokensO200k": 18
+            },
+            {
+              "id": "grpc.getPrice.method",
+              "lines": 5,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "source": "    public override Task<GetPriceResponse> GetPrice(GetPriceRequest request, ServerCallContext context)\n    {\n        var price = Random.Shared.Next(1, 998);\n        return Task.FromResult(new GetPriceResponse { Price = price });\n    }",
+              "title": "GetPrice override",
+              "tokensCl100k": 51,
+              "tokensO200k": 51
+            },
+            {
+              "id": "grpc.host.serve",
+              "lines": 16,
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "source": "builder.Services.AddGrpc();\nbuilder.Services.AddCors(options =>\n{\n    options.AddPolicy(\"AllowAll\", policy =>\n        policy\n            .AllowAnyOrigin()\n            .AllowAnyHeader()\n            .AllowAnyMethod()\n            .WithExposedHeaders(\"Grpc-Status\", \"Grpc-Message\", \"Grpc-Status-Details-Bin\"));\n});\n\nvar app = builder.Build();\n\napp.UseRouting();\napp.UseCors(\"AllowAll\");\n// gRPC-Web lets browsers call the gRPC service over the same /energyprice.PriceService/GetPrice path.\napp.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });\n\napp.MapGrpcService<PriceServiceImpl>().EnableGrpcWeb().RequireCors(\"AllowAll\");",
+              "title": "gRPC-Web host wiring",
+              "tokensCl100k": 150,
+              "tokensO200k": 142
+            },
+            {
+              "id": "grpc.getPrice.client",
+              "lines": 12,
+              "path": "official/perf-lab/src/clients/grpcClient.js",
+              "source": "const clientCache = new Map()\n\nfunction getClient(baseUrl) {\n  const key = baseUrl.replace(/\\/$/, '')\n  if (!clientCache.has(key)) {\n    const transport = createGrpcWebTransport({ baseUrl: key })\n    clientCache.set(key, createPromiseClient(PriceService, transport))\n  }\n  return clientCache.get(key)\n}\n\nexport async function callGrpcGetPrice(baseUrl) {\n  await getClient(baseUrl).getPrice({})\n}",
+              "title": "callGrpcGetPrice",
+              "tokensCl100k": 90,
+              "tokensO200k": 95
+            }
+          ],
+          "dependency": [
+            {
+              "id": "grpc.dependency.aspnet",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj",
+              "source": "<PackageReference Include=\"Grpc.AspNetCore\" Version=\"2.66.0\" />",
+              "title": "Grpc.AspNetCore",
+              "tokensCl100k": 18,
+              "tokensO200k": 19
+            },
+            {
+              "id": "grpc.dependency.web",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj",
+              "source": "<PackageReference Include=\"Grpc.AspNetCore.Web\" Version=\"2.66.0\" />",
+              "title": "Grpc.AspNetCore.Web",
+              "tokensCl100k": 19,
+              "tokensO200k": 20
+            },
+            {
+              "id": "grpc.dependency.proto",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj",
+              "source": "<Protobuf Include=\"Protos\\price.proto\" GrpcServices=\"Server\" />",
+              "title": "Protobuf item",
+              "tokensCl100k": 18,
+              "tokensO200k": 18
+            },
+            {
+              "id": "grpc.dependency.protobufjs",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@bufbuild/protobuf\": \"1.10.0\",",
+              "title": "@bufbuild/protobuf",
+              "tokensCl100k": 13,
+              "tokensO200k": 14
+            },
+            {
+              "id": "grpc.dependency.connect",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@connectrpc/connect\": \"1.6.1\",",
+              "title": "@connectrpc/connect",
+              "tokensCl100k": 12,
+              "tokensO200k": 13
+            },
+            {
+              "id": "grpc.dependency.connectweb",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@connectrpc/connect-web\": \"1.6.1\",",
+              "title": "@connectrpc/connect-web",
+              "tokensCl100k": 13,
+              "tokensO200k": 14
+            }
+          ],
+          "deploy": [
+            {
+              "id": "grpc.deploy.dockerfile",
+              "lines": 16,
+              "path": "official/grpc-energy-price-dotnet/Dockerfile",
+              "source": "# Build stage\nFROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nWORKDIR /src\n\nCOPY EnergyPriceGrpc.csproj ./\nRUN dotnet restore ./EnergyPriceGrpc.csproj\n\nCOPY . ./\nRUN dotnet publish ./EnergyPriceGrpc.csproj -c Release -o out\n\n# Runtime stage\nFROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final\nWORKDIR /app\n\n# No TLS cert in the container -> the service listens on $PORT in cleartext h2c;\n# Azure Container Apps ingress terminates TLS. Set ingress transport to \"http2\".\nENV PORT=8080\nEXPOSE 8080\n\nCOPY --from=build /src/out ./\nENTRYPOINT [\"dotnet\", \"EnergyPriceGrpc.dll\"]",
+              "title": "gRPC Dockerfile",
+              "tokensCl100k": 168,
+              "tokensO200k": 164
+            }
+          ],
+          "domain": [
+            {
+              "id": "grpc.domain.helpers",
+              "lines": 17,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "reason": "Same pricing logic as EnergyPriceService. Shown, not counted.",
+              "source": "    private const long MinuteMs = 60_000;\n\n    private static int Clamp(int count) => count <= 0 ? 1 : Math.Min(count, 200_000);\n\n    private static PricePoint MakePoint(int i, long now)\n    {\n        var price = Random.Shared.Next(1, 998);\n        return new PricePoint\n        {\n            Timestamp = now - (long)i * MinuteMs,\n            Price = price,\n            Low = price * 0.9,\n            High = price * 1.1,\n            Average = price,\n            Currency = \"EUR\",\n            Region = \"EU-Central\",\n            Source = $\"grid-meter-{i % 64}\",\n        };\n    }",
+              "title": "Price point helpers",
+              "tokensCl100k": 146,
+              "tokensO200k": 146
+            }
+          ],
+          "excluded": [
+            {
+              "id": "grpc.host.transport",
+              "lines": 35,
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "reason": "Transport tuning. Graftcode's gateway binary is left out the same way.",
+              "source": "// HTTPS + HTTP/2 on :5005, sharing the local mkcert PEM with the other services.\n// Browsers require TLS for HTTP/2, and gRPC-Web rides over it.\nvar certPath = Environment.GetEnvironmentVariable(\"TLS_CERT\")\n    ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost.pem\");\nvar keyPath = Environment.GetEnvironmentVariable(\"TLS_KEY\")\n    ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost-key.pem\");\n\nvar hasCert = File.Exists(certPath) && File.Exists(keyPath);\n// Local: fixed port 5005 over HTTPS. Container (Azure Container Apps): listen on\n// $PORT in cleartext HTTP/2 (h2c) — set the Container App ingress transport to\n// \"http2\" so gRPC/gRPC-Web is not downgraded.\nvar port = hasCert ? 5005 : int.Parse(Environment.GetEnvironmentVariable(\"PORT\") ?? \"8080\");\n\nbuilder.WebHost.ConfigureKestrel(options =>\n{\n    options.ListenAnyIP(port, listenOptions =>\n    {\n        if (hasCert)\n        {\n            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;\n            // Round-trip PEM -> PFX so Schannel (Windows) can use the private key.\n            var pem = X509Certificate2.CreateFromPemFile(certPath, keyPath);\n            var cert = new X509Certificate2(pem.Export(X509ContentType.Pfx));\n            listenOptions.UseHttps(cert);\n        }\n        else\n        {\n            var cleartextHttp2 = string.Equals(\n                Environment.GetEnvironmentVariable(\"KESTREL_CLEARTEXT_HTTP2\"),\n                \"true\",\n                StringComparison.OrdinalIgnoreCase);\n            listenOptions.Protocols = cleartextHttp2\n                ? HttpProtocols.Http2\n                : HttpProtocols.Http1;\n        }\n    });\n});",
+              "title": "Kestrel, TLS, HTTP version",
+              "tokensCl100k": 389,
+              "tokensO200k": 384
+            },
+            {
+              "id": "grpc.host.status",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "reason": "Probe endpoint, not part of the price call.",
+              "source": "app.MapGet(\"/status\", () => Results.Ok(new { status = \"healthy\" }));",
+              "title": "/status health check",
+              "tokensCl100k": 19,
+              "tokensO200k": 19
+            },
+            {
+              "id": "grpc.codegen.priceProto",
+              "lines": 50,
+              "path": "official/perf-lab/src/priceProto.js",
+              "reason": "Hand-written stand-in for protoc output. The .proto is the counted contract. Generated C# and the Graft package are omitted the same way.",
+              "source": "// Hand-authored protobuf descriptors for energyprice.PriceService, mirroring\n// grpc-energy-price-dotnet/Protos/price.proto. Authored with the @bufbuild/protobuf\n// runtime (already a dependency) so we don't need buf/protoc codegen tooling.\nimport { proto3, ScalarType, MethodKind } from '@bufbuild/protobuf'\n\nexport const GetPriceRequest = proto3.makeMessageType('energyprice.GetPriceRequest', [])\n\nexport const GetPriceResponse = proto3.makeMessageType('energyprice.GetPriceResponse', [\n  { no: 1, name: 'price', kind: 'scalar', T: ScalarType.DOUBLE },\n])\n\nexport const PricePoint = proto3.makeMessageType('energyprice.PricePoint', [\n  { no: 1, name: 'timestamp', kind: 'scalar', T: ScalarType.INT64 },\n  { no: 2, name: 'price', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 3, name: 'low', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 4, name: 'high', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 5, name: 'average', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 6, name: 'currency', kind: 'scalar', T: ScalarType.STRING },\n  { no: 7, name: 'region', kind: 'scalar', T: ScalarType.STRING },\n  { no: 8, name: 'source', kind: 'scalar', T: ScalarType.STRING },\n])\n\nexport const GetPriceHistoryRequest = proto3.makeMessageType('energyprice.GetPriceHistoryRequest', [\n  { no: 1, name: 'count', kind: 'scalar', T: ScalarType.INT32 },\n])\n\nexport const GetPriceHistoryResponse = proto3.makeMessageType('energyprice.GetPriceHistoryResponse', [\n  { no: 1, name: 'points', kind: 'message', T: PricePoint, repeated: true },\n])\n\nexport const StreamPricesRequest = proto3.makeMessageType('energyprice.StreamPricesRequest', [\n  { no: 1, name: 'count', kind: 'scalar', T: ScalarType.INT32 },\n])\n\nexport const PriceService = {\n  typeName: 'energyprice.PriceService',\n  methods: {\n    getPrice: {\n      name: 'GetPrice',\n      I: GetPriceRequest,\n      O: GetPriceResponse,\n      kind: MethodKind.Unary,\n    },\n    getPriceHistory: {\n      name: 'GetPriceHistory',\n      I: GetPriceHistoryRequest,\n      O: GetPriceHistoryResponse,\n      kind: MethodKind.Unary,\n    },\n    streamPrices: {\n      name: 'StreamPrices',\n      I: StreamPricesRequest,\n      O: PricePoint,\n      kind: MethodKind.ServerStreaming,\n    },\n  },\n}",
+              "title": "priceProto.js",
+              "tokensCl100k": 609,
+              "tokensO200k": 616
+            }
+          ],
+          "extra": [
+            {
+              "id": "grpc.stream.rpc",
+              "lines": 2,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "reason": "gRPC-only. No REST or Graftcode counterpart, so it is not in the shared total.",
+              "source": "  // Server streaming: gRPC-only. No REST or Graftcode counterpart.\n  rpc StreamPrices(StreamPricesRequest) returns (stream PricePoint);",
+              "title": "rpc StreamPrices",
+              "tokensCl100k": 31,
+              "tokensO200k": 31
+            },
+            {
+              "id": "grpc.stream.messages",
+              "lines": 3,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "reason": "gRPC-only. PricePoint itself is counted with GetPriceHistory.",
+              "source": "message StreamPricesRequest {\n  int32 count = 1;\n}",
+              "title": "StreamPrices request",
+              "tokensCl100k": 14,
+              "tokensO200k": 14
+            },
+            {
+              "id": "grpc.stream.method",
+              "lines": 11,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "reason": "gRPC-only. Not in the shared total.",
+              "source": "    // Server streaming: emit `count` points one at a time over one HTTP/2 stream.\n    public override async Task StreamPrices(\n        StreamPricesRequest request, IServerStreamWriter<PricePoint> responseStream, ServerCallContext context)\n    {\n        var count = Clamp(request.Count);\n        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();\n        for (var i = 0; i < count && !context.CancellationToken.IsCancellationRequested; i++)\n        {\n            await responseStream.WriteAsync(MakePoint(i, now));\n        }\n    }",
+              "title": "StreamPrices override",
+              "tokensCl100k": 113,
+              "tokensO200k": 118
+            },
+            {
+              "id": "grpc.stream.client",
+              "lines": 7,
+              "path": "official/perf-lab/src/clients/grpcClient.js",
+              "reason": "gRPC-only. Not in the shared total.",
+              "source": "export async function streamGrpcPrices(baseUrl, count) {\n  let received = 0\n  for await (const _point of getClient(baseUrl).streamPrices({ count })) {\n    received += 1\n  }\n  return received\n}",
+              "title": "streamGrpcPrices",
+              "tokensCl100k": 49,
+              "tokensO200k": 51
+            }
+          ],
+          "lines": 44,
+          "name": "gRPC",
+          "tokensCl100k": 365,
+          "tokensO200k": 361
+        },
+        "rest": {
+          "counted": [
+            {
+              "id": "rest.getPrice.client",
+              "lines": 7,
+              "path": "official/perf-lab/src/clients/restClient.js",
+              "source": "export async function fetchEnergyPrice(baseUrl) {\n  const response = await fetch(`${baseUrl}/api/EnergyPrice/price`)\n  if (!response.ok) {\n    throw new Error(`REST failed (${response.status})`)\n  }\n  return response.json()\n}",
+              "title": "fetchEnergyPrice",
+              "tokensCl100k": 52,
+              "tokensO200k": 54
+            },
+            {
+              "id": "rest.getPrice.controller",
+              "lines": 9,
+              "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+              "source": "    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class EnergyPriceController : ControllerBase\n    {\n        [HttpGet(\"price\")]\n        public ActionResult<double> GetPrice()\n        {\n            return Ok(EnergyPriceService.GetPrice());\n        }",
+              "title": "GET /api/EnergyPrice/price",
+              "tokensCl100k": 51,
+              "tokensO200k": 55
+            },
+            {
+              "id": "rest.host.controllers",
+              "lines": 1,
+              "path": "official/electric-company-ws/Program.cs",
+              "source": "            builder.Services.AddControllers();",
+              "title": "AddControllers",
+              "tokensCl100k": 6,
+              "tokensO200k": 6
+            },
+            {
+              "id": "rest.host.cors",
+              "lines": 8,
+              "path": "official/electric-company-ws/Program.cs",
+              "source": "            builder.Services.AddCors(options =>\n            {\n                options.AddPolicy(\"AllowAll\", policy =>\n                    policy\n                        .AllowAnyOrigin()\n                        .AllowAnyHeader()\n                        .AllowAnyMethod());\n            });",
+              "title": "CORS policy",
+              "tokensCl100k": 42,
+              "tokensO200k": 42
+            },
+            {
+              "id": "rest.host.map",
+              "lines": 4,
+              "path": "official/electric-company-ws/Program.cs",
+              "source": "            app.UseRouting();\n            app.UseCors(\"AllowAll\");\n\n            app.UseAuthorization();\n\n            app.MapControllers();",
+              "title": "Map controllers",
+              "tokensCl100k": 23,
+              "tokensO200k": 23
+            }
+          ],
+          "dependency": [],
+          "deploy": [
+            {
+              "id": "rest.deploy.dockerfile",
+              "lines": 16,
+              "path": "official/electric-company-ws/Dockerfile",
+              "source": "# Build stage\nFROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nWORKDIR /src\n\nCOPY be.csproj ./\nRUN dotnet restore ./be.csproj\n\nCOPY . ./\nRUN dotnet publish ./be.csproj -c Release -o out\n\n# Runtime stage\nFROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final\nWORKDIR /app\n\n# No TLS cert in the container -> Kestrel serves cleartext HTTP/1.1 + h2c on $PORT;\n# demo-ecws-h2 sets ingress transport to \"http2\"; demo-ecws uses \"http\".\nENV PORT=8080\nEXPOSE 8080\n\nCOPY --from=build /src/out ./\nENTRYPOINT [\"dotnet\", \"be.dll\"]",
+              "title": "REST Dockerfile",
+              "tokensCl100k": 169,
+              "tokensO200k": 168
+            }
+          ],
+          "domain": [],
+          "excluded": [
+            {
+              "id": "rest.host.transport",
+              "lines": 40,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Transport tuning. Graftcode's gateway binary is left out the same way.",
+              "source": "            // Serve REST over HTTPS with HTTP/2 (h2) so it matches the gRPC and\n            // Graftcode paths in the perf-lab benchmark. Browsers require TLS for\n            // HTTP/2, so we load the shared local mkcert PEM. HTTP/1.1 stays\n            // enabled as a fallback for non-h2 clients.\n            var certPath = Environment.GetEnvironmentVariable(\"TLS_CERT\")\n                ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost.pem\");\n            var keyPath = Environment.GetEnvironmentVariable(\"TLS_KEY\")\n                ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost-key.pem\");\n\n            var hasCert = File.Exists(certPath) && File.Exists(keyPath);\n            // Local: fixed port 8090 over HTTPS. Container (Azure Container Apps):\n            // listen on $PORT in cleartext — the ingress terminates TLS and offers\n            // HTTP/2 to the browser.\n            var port = hasCert ? 8090 : int.Parse(Environment.GetEnvironmentVariable(\"PORT\") ?? \"8080\");\n\n            builder.WebHost.ConfigureKestrel(options =>\n            {\n                options.ListenAnyIP(port, listenOptions =>\n                {\n                    if (hasCert)\n                    {\n                        // HTTP/1.1 + HTTP/2 negotiated via ALPN over TLS.\n                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;\n                        // Round-trip the PEM through PFX so Schannel (Windows) can\n                        // access the private key; using the PEM cert directly fails\n                        // the TLS handshake on Windows.\n                        var pem = X509Certificate2.CreateFromPemFile(certPath, keyPath);\n                        var cert = new X509Certificate2(pem.Export(X509ContentType.Pfx));\n                        listenOptions.UseHttps(cert);\n                    }\n                    else\n                    {\n                        var cleartextHttp2 = string.Equals(\n                            Environment.GetEnvironmentVariable(\"KESTREL_CLEARTEXT_HTTP2\"),\n                            \"true\",\n                            StringComparison.OrdinalIgnoreCase);\n                        listenOptions.Protocols = cleartextHttp2\n                            ? HttpProtocols.Http2\n                            : HttpProtocols.Http1;\n                    }\n                });\n            });",
+              "title": "Kestrel, TLS, HTTP version",
+              "tokensCl100k": 452,
+              "tokensO200k": 451
+            },
+            {
+              "id": "rest.host.swagger",
+              "lines": 2,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Optional API explorer, not required to call getPrice.",
+              "source": "            builder.Services.AddEndpointsApiExplorer();\n            builder.Services.AddSwaggerGen();",
+              "title": "Swagger services",
+              "tokensCl100k": 15,
+              "tokensO200k": 15
+            },
+            {
+              "id": "rest.host.swagger-ui",
+              "lines": 2,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Optional API explorer, not required to call getPrice.",
+              "source": "            app.UseSwagger();\n            app.UseSwaggerUI();",
+              "title": "Swagger UI",
+              "tokensCl100k": 11,
+              "tokensO200k": 11
+            },
+            {
+              "id": "rest.host.status",
+              "lines": 2,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Probe endpoint, not part of the price call.",
+              "source": "            // Health check endpoint for Container App probes\n            app.MapGet(\"/status\", () => Results.Ok(new { status = \"healthy\" }));",
+              "title": "/status health check",
+              "tokensCl100k": 30,
+              "tokensO200k": 30
+            }
+          ],
+          "extra": [],
+          "lines": 29,
+          "name": "REST",
+          "tokensCl100k": 174,
+          "tokensO200k": 180
+        }
+      },
+      "versus": {
+        "grpc": {
+          "linesPercentFewer": 84.1,
+          "linesTimes": 6.3,
+          "tokensCl100kPercentFewer": 88.5,
+          "tokensCl100kTimes": 8.7,
+          "tokensO200kPercentFewer": 88.1
+        },
+        "rest": {
+          "linesPercentFewer": 75.9,
+          "linesTimes": 4.1,
+          "tokensCl100kPercentFewer": 75.9,
+          "tokensCl100kTimes": 4.1,
+          "tokensO200kPercentFewer": 76.1
+        }
+      }
+    },
+    "whole": {
+      "note": "getPrice, getPriceHistory, and the REST billing, meter, tariff, outage, and loyalty controllers. gRPC has no billing surface in this demo, so its column is the energy-price service only.",
+      "stacks": {
+        "graftcode": {
+          "counted": [
+            {
+              "id": "graft.getPrice.client",
+              "lines": 7,
+              "path": "official/perf-lab/src/clients/graftClient.js",
+              "source": "export function configureGraftHost(host) {\n  GraftConfig.host = host\n  GraftConfig.stateless = true\n}\n\nexport function graftGetPrice() {\n  return EnergyPriceService.getPrice()\n}",
+              "title": "configure host and getPrice",
+              "tokensCl100k": 42,
+              "tokensO200k": 43
+            },
+            {
+              "id": "graft.history.client",
+              "lines": 3,
+              "path": "official/perf-lab/src/clients/graftClient.js",
+              "source": "export function graftGetPriceHistory(count) {\n  return EnergyPriceService.getPriceHistory(count)\n}",
+              "title": "getPriceHistory",
+              "tokensCl100k": 19,
+              "tokensO200k": 20
+            }
+          ],
+          "dependency": [
+            {
+              "id": "graft.dependency.package",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@graft/nuget-energypriceservice\": \"1.3.0\",",
+              "title": "package.json",
+              "tokensCl100k": 17,
+              "tokensO200k": 18
+            },
+            {
+              "id": "graft.dependency.registry",
+              "lines": 1,
+              "path": "official/perf-lab/.npmrc.example",
+              "source": "@graft:registry=https://grft.dev/6d44e8fa-78dc-4f89-b04f-8f0161172d31__free",
+              "title": ".npmrc.example registry",
+              "tokensCl100k": 37,
+              "tokensO200k": 36
+            }
+          ],
+          "deploy": [
+            {
+              "id": "graft.deploy.dockerfile",
+              "lines": 23,
+              "path": "official/electric-company-be/Dockerfile",
+              "source": "FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nWORKDIR /src\n\nCOPY EnergyPriceService.csproj ./\nRUN dotnet restore ./EnergyPriceService.csproj\n\nCOPY . ./\nRUN dotnet publish ./EnergyPriceService.csproj -c Release -o /app/publish\n\nFROM mcr.microsoft.com/dotnet/aspnet:9.0\n\n# Pin at build time with --build-arg GG_VERSION=v1.x.x or leave empty for /releases/latest.\nARG GG_VERSION=\nRUN mkdir -p /usr/app \\\n    && apt-get update \\\n    && apt-get install -y wget ca-certificates \\\n    && if [ -n \"$GG_VERSION\" ]; then \\\n         wget -O /usr/app/gg.deb \"https://github.com/grft-dev/graftcode-gateway/releases/download/${GG_VERSION}/gg_linux_amd64.deb\"; \\\n       else \\\n         wget -O /usr/app/gg.deb \"https://github.com/grft-dev/graftcode-gateway/releases/latest/download/gg_linux_amd64.deb\"; \\\n       fi \\\n    && dpkg -i /usr/app/gg.deb \\\n    && rm /usr/app/gg.deb \\\n    && apt-get clean \\\n    && rm -rf /var/lib/apt/lists/*\n\nCOPY --from=build /app/publish/ /usr/app/\n\nCMD [\"gg\", \"--runtime\", \"netcore\", \"--modules\", \"/usr/app/EnergyPriceService.dll\", \"--port\", \"81\", \"--httpPort\", \"5001\"]",
+              "title": "Graftcode Dockerfile",
+              "tokensCl100k": 319,
+              "tokensO200k": 326
+            }
+          ],
+          "domain": [],
+          "excluded": [],
+          "extra": [],
+          "lines": 10,
+          "name": "Graftcode",
+          "tokensCl100k": 61,
+          "tokensO200k": 63
+        },
+        "grpc": {
+          "counted": [
+            {
+              "id": "grpc.proto.header",
+              "lines": 4,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "syntax = \"proto3\";\n\noption csharp_namespace = \"EnergyPriceGrpc\";\n\npackage energyprice;\n\nservice PriceService {",
+              "title": "price.proto header",
+              "tokensCl100k": 25,
+              "tokensO200k": 24
+            },
+            {
+              "id": "grpc.proto.footer",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "}",
+              "title": "service closing brace",
+              "tokensCl100k": 1,
+              "tokensO200k": 1
+            },
+            {
+              "id": "grpc.getPrice.rpc",
+              "lines": 2,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "  // Trivial unary call (single number) — used by the benchmark.\n  rpc GetPrice(GetPriceRequest) returns (GetPriceResponse);",
+              "title": "rpc GetPrice",
+              "tokensCl100k": 30,
+              "tokensO200k": 30
+            },
+            {
+              "id": "grpc.getPrice.messages",
+              "lines": 4,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "message GetPriceRequest {}\n\nmessage GetPriceResponse {\n  double price = 1;\n}",
+              "title": "GetPrice messages",
+              "tokensCl100k": 18,
+              "tokensO200k": 18
+            },
+            {
+              "id": "grpc.history.rpc",
+              "lines": 2,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "  // Large payload: one unary call returns `count` price points.\n  rpc GetPriceHistory(GetPriceHistoryRequest) returns (GetPriceHistoryResponse);",
+              "title": "rpc GetPriceHistory",
+              "tokensCl100k": 32,
+              "tokensO200k": 32
+            },
+            {
+              "id": "grpc.history.messages",
+              "lines": 17,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "source": "message GetPriceHistoryRequest {\n  int32 count = 1;\n}\n\nmessage GetPriceHistoryResponse {\n  repeated PricePoint points = 1;\n}\n\n// A reasonably \"fat\" record so the JSON-vs-protobuf size/parse difference is real.\nmessage PricePoint {\n  int64 timestamp = 1;\n  double price = 2;\n  double low = 3;\n  double high = 4;\n  double average = 5;\n  string currency = 6;\n  string region = 7;\n  string source = 8;\n}",
+              "title": "GetPriceHistory messages",
+              "tokensCl100k": 113,
+              "tokensO200k": 113
+            },
+            {
+              "id": "grpc.getPrice.method",
+              "lines": 5,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "source": "    public override Task<GetPriceResponse> GetPrice(GetPriceRequest request, ServerCallContext context)\n    {\n        var price = Random.Shared.Next(1, 998);\n        return Task.FromResult(new GetPriceResponse { Price = price });\n    }",
+              "title": "GetPrice override",
+              "tokensCl100k": 51,
+              "tokensO200k": 51
+            },
+            {
+              "id": "grpc.history.method",
+              "lines": 13,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "source": "    // Large payload: build `count` points and return them in one message.\n    public override Task<GetPriceHistoryResponse> GetPriceHistory(\n        GetPriceHistoryRequest request, ServerCallContext context)\n    {\n        var count = Clamp(request.Count);\n        var response = new GetPriceHistoryResponse();\n        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();\n        for (var i = 0; i < count; i++)\n        {\n            response.Points.Add(MakePoint(i, now));\n        }\n        return Task.FromResult(response);\n    }",
+              "title": "GetPriceHistory override",
+              "tokensCl100k": 112,
+              "tokensO200k": 116
+            },
+            {
+              "id": "grpc.host.serve",
+              "lines": 16,
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "source": "builder.Services.AddGrpc();\nbuilder.Services.AddCors(options =>\n{\n    options.AddPolicy(\"AllowAll\", policy =>\n        policy\n            .AllowAnyOrigin()\n            .AllowAnyHeader()\n            .AllowAnyMethod()\n            .WithExposedHeaders(\"Grpc-Status\", \"Grpc-Message\", \"Grpc-Status-Details-Bin\"));\n});\n\nvar app = builder.Build();\n\napp.UseRouting();\napp.UseCors(\"AllowAll\");\n// gRPC-Web lets browsers call the gRPC service over the same /energyprice.PriceService/GetPrice path.\napp.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });\n\napp.MapGrpcService<PriceServiceImpl>().EnableGrpcWeb().RequireCors(\"AllowAll\");",
+              "title": "gRPC-Web host wiring",
+              "tokensCl100k": 150,
+              "tokensO200k": 142
+            },
+            {
+              "id": "grpc.getPrice.client",
+              "lines": 12,
+              "path": "official/perf-lab/src/clients/grpcClient.js",
+              "source": "const clientCache = new Map()\n\nfunction getClient(baseUrl) {\n  const key = baseUrl.replace(/\\/$/, '')\n  if (!clientCache.has(key)) {\n    const transport = createGrpcWebTransport({ baseUrl: key })\n    clientCache.set(key, createPromiseClient(PriceService, transport))\n  }\n  return clientCache.get(key)\n}\n\nexport async function callGrpcGetPrice(baseUrl) {\n  await getClient(baseUrl).getPrice({})\n}",
+              "title": "callGrpcGetPrice",
+              "tokensCl100k": 90,
+              "tokensO200k": 95
+            },
+            {
+              "id": "grpc.history.client",
+              "lines": 4,
+              "path": "official/perf-lab/src/clients/grpcClient.js",
+              "source": "export async function callGrpcGetPriceHistory(baseUrl, count) {\n  const response = await getClient(baseUrl).getPriceHistory({ count })\n  return response.points?.length ?? 0\n}",
+              "title": "callGrpcGetPriceHistory",
+              "tokensCl100k": 39,
+              "tokensO200k": 41
+            }
+          ],
+          "dependency": [
+            {
+              "id": "grpc.dependency.aspnet",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj",
+              "source": "<PackageReference Include=\"Grpc.AspNetCore\" Version=\"2.66.0\" />",
+              "title": "Grpc.AspNetCore",
+              "tokensCl100k": 18,
+              "tokensO200k": 19
+            },
+            {
+              "id": "grpc.dependency.web",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj",
+              "source": "<PackageReference Include=\"Grpc.AspNetCore.Web\" Version=\"2.66.0\" />",
+              "title": "Grpc.AspNetCore.Web",
+              "tokensCl100k": 19,
+              "tokensO200k": 20
+            },
+            {
+              "id": "grpc.dependency.proto",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/EnergyPriceGrpc.csproj",
+              "source": "<Protobuf Include=\"Protos\\price.proto\" GrpcServices=\"Server\" />",
+              "title": "Protobuf item",
+              "tokensCl100k": 18,
+              "tokensO200k": 18
+            },
+            {
+              "id": "grpc.dependency.protobufjs",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@bufbuild/protobuf\": \"1.10.0\",",
+              "title": "@bufbuild/protobuf",
+              "tokensCl100k": 13,
+              "tokensO200k": 14
+            },
+            {
+              "id": "grpc.dependency.connect",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@connectrpc/connect\": \"1.6.1\",",
+              "title": "@connectrpc/connect",
+              "tokensCl100k": 12,
+              "tokensO200k": 13
+            },
+            {
+              "id": "grpc.dependency.connectweb",
+              "lines": 1,
+              "path": "official/perf-lab/package.json",
+              "source": "\"@connectrpc/connect-web\": \"1.6.1\",",
+              "title": "@connectrpc/connect-web",
+              "tokensCl100k": 13,
+              "tokensO200k": 14
+            }
+          ],
+          "deploy": [
+            {
+              "id": "grpc.deploy.dockerfile",
+              "lines": 16,
+              "path": "official/grpc-energy-price-dotnet/Dockerfile",
+              "source": "# Build stage\nFROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nWORKDIR /src\n\nCOPY EnergyPriceGrpc.csproj ./\nRUN dotnet restore ./EnergyPriceGrpc.csproj\n\nCOPY . ./\nRUN dotnet publish ./EnergyPriceGrpc.csproj -c Release -o out\n\n# Runtime stage\nFROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final\nWORKDIR /app\n\n# No TLS cert in the container -> the service listens on $PORT in cleartext h2c;\n# Azure Container Apps ingress terminates TLS. Set ingress transport to \"http2\".\nENV PORT=8080\nEXPOSE 8080\n\nCOPY --from=build /src/out ./\nENTRYPOINT [\"dotnet\", \"EnergyPriceGrpc.dll\"]",
+              "title": "gRPC Dockerfile",
+              "tokensCl100k": 168,
+              "tokensO200k": 164
+            }
+          ],
+          "domain": [
+            {
+              "id": "grpc.domain.helpers",
+              "lines": 17,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "reason": "Same pricing logic as EnergyPriceService. Shown, not counted.",
+              "source": "    private const long MinuteMs = 60_000;\n\n    private static int Clamp(int count) => count <= 0 ? 1 : Math.Min(count, 200_000);\n\n    private static PricePoint MakePoint(int i, long now)\n    {\n        var price = Random.Shared.Next(1, 998);\n        return new PricePoint\n        {\n            Timestamp = now - (long)i * MinuteMs,\n            Price = price,\n            Low = price * 0.9,\n            High = price * 1.1,\n            Average = price,\n            Currency = \"EUR\",\n            Region = \"EU-Central\",\n            Source = $\"grid-meter-{i % 64}\",\n        };\n    }",
+              "title": "Price point helpers",
+              "tokensCl100k": 146,
+              "tokensO200k": 146
+            }
+          ],
+          "excluded": [
+            {
+              "id": "grpc.host.transport",
+              "lines": 35,
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "reason": "Transport tuning. Graftcode's gateway binary is left out the same way.",
+              "source": "// HTTPS + HTTP/2 on :5005, sharing the local mkcert PEM with the other services.\n// Browsers require TLS for HTTP/2, and gRPC-Web rides over it.\nvar certPath = Environment.GetEnvironmentVariable(\"TLS_CERT\")\n    ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost.pem\");\nvar keyPath = Environment.GetEnvironmentVariable(\"TLS_KEY\")\n    ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost-key.pem\");\n\nvar hasCert = File.Exists(certPath) && File.Exists(keyPath);\n// Local: fixed port 5005 over HTTPS. Container (Azure Container Apps): listen on\n// $PORT in cleartext HTTP/2 (h2c) — set the Container App ingress transport to\n// \"http2\" so gRPC/gRPC-Web is not downgraded.\nvar port = hasCert ? 5005 : int.Parse(Environment.GetEnvironmentVariable(\"PORT\") ?? \"8080\");\n\nbuilder.WebHost.ConfigureKestrel(options =>\n{\n    options.ListenAnyIP(port, listenOptions =>\n    {\n        if (hasCert)\n        {\n            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;\n            // Round-trip PEM -> PFX so Schannel (Windows) can use the private key.\n            var pem = X509Certificate2.CreateFromPemFile(certPath, keyPath);\n            var cert = new X509Certificate2(pem.Export(X509ContentType.Pfx));\n            listenOptions.UseHttps(cert);\n        }\n        else\n        {\n            var cleartextHttp2 = string.Equals(\n                Environment.GetEnvironmentVariable(\"KESTREL_CLEARTEXT_HTTP2\"),\n                \"true\",\n                StringComparison.OrdinalIgnoreCase);\n            listenOptions.Protocols = cleartextHttp2\n                ? HttpProtocols.Http2\n                : HttpProtocols.Http1;\n        }\n    });\n});",
+              "title": "Kestrel, TLS, HTTP version",
+              "tokensCl100k": 389,
+              "tokensO200k": 384
+            },
+            {
+              "id": "grpc.host.status",
+              "lines": 1,
+              "path": "official/grpc-energy-price-dotnet/Program.cs",
+              "reason": "Probe endpoint, not part of the price call.",
+              "source": "app.MapGet(\"/status\", () => Results.Ok(new { status = \"healthy\" }));",
+              "title": "/status health check",
+              "tokensCl100k": 19,
+              "tokensO200k": 19
+            },
+            {
+              "id": "grpc.codegen.priceProto",
+              "lines": 50,
+              "path": "official/perf-lab/src/priceProto.js",
+              "reason": "Hand-written stand-in for protoc output. The .proto is the counted contract. Generated C# and the Graft package are omitted the same way.",
+              "source": "// Hand-authored protobuf descriptors for energyprice.PriceService, mirroring\n// grpc-energy-price-dotnet/Protos/price.proto. Authored with the @bufbuild/protobuf\n// runtime (already a dependency) so we don't need buf/protoc codegen tooling.\nimport { proto3, ScalarType, MethodKind } from '@bufbuild/protobuf'\n\nexport const GetPriceRequest = proto3.makeMessageType('energyprice.GetPriceRequest', [])\n\nexport const GetPriceResponse = proto3.makeMessageType('energyprice.GetPriceResponse', [\n  { no: 1, name: 'price', kind: 'scalar', T: ScalarType.DOUBLE },\n])\n\nexport const PricePoint = proto3.makeMessageType('energyprice.PricePoint', [\n  { no: 1, name: 'timestamp', kind: 'scalar', T: ScalarType.INT64 },\n  { no: 2, name: 'price', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 3, name: 'low', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 4, name: 'high', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 5, name: 'average', kind: 'scalar', T: ScalarType.DOUBLE },\n  { no: 6, name: 'currency', kind: 'scalar', T: ScalarType.STRING },\n  { no: 7, name: 'region', kind: 'scalar', T: ScalarType.STRING },\n  { no: 8, name: 'source', kind: 'scalar', T: ScalarType.STRING },\n])\n\nexport const GetPriceHistoryRequest = proto3.makeMessageType('energyprice.GetPriceHistoryRequest', [\n  { no: 1, name: 'count', kind: 'scalar', T: ScalarType.INT32 },\n])\n\nexport const GetPriceHistoryResponse = proto3.makeMessageType('energyprice.GetPriceHistoryResponse', [\n  { no: 1, name: 'points', kind: 'message', T: PricePoint, repeated: true },\n])\n\nexport const StreamPricesRequest = proto3.makeMessageType('energyprice.StreamPricesRequest', [\n  { no: 1, name: 'count', kind: 'scalar', T: ScalarType.INT32 },\n])\n\nexport const PriceService = {\n  typeName: 'energyprice.PriceService',\n  methods: {\n    getPrice: {\n      name: 'GetPrice',\n      I: GetPriceRequest,\n      O: GetPriceResponse,\n      kind: MethodKind.Unary,\n    },\n    getPriceHistory: {\n      name: 'GetPriceHistory',\n      I: GetPriceHistoryRequest,\n      O: GetPriceHistoryResponse,\n      kind: MethodKind.Unary,\n    },\n    streamPrices: {\n      name: 'StreamPrices',\n      I: StreamPricesRequest,\n      O: PricePoint,\n      kind: MethodKind.ServerStreaming,\n    },\n  },\n}",
+              "title": "priceProto.js",
+              "tokensCl100k": 609,
+              "tokensO200k": 616
+            }
+          ],
+          "extra": [
+            {
+              "id": "grpc.stream.rpc",
+              "lines": 2,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "reason": "gRPC-only. No REST or Graftcode counterpart, so it is not in the shared total.",
+              "source": "  // Server streaming: gRPC-only. No REST or Graftcode counterpart.\n  rpc StreamPrices(StreamPricesRequest) returns (stream PricePoint);",
+              "title": "rpc StreamPrices",
+              "tokensCl100k": 31,
+              "tokensO200k": 31
+            },
+            {
+              "id": "grpc.stream.messages",
+              "lines": 3,
+              "path": "official/grpc-energy-price-dotnet/Protos/price.proto",
+              "reason": "gRPC-only. PricePoint itself is counted with GetPriceHistory.",
+              "source": "message StreamPricesRequest {\n  int32 count = 1;\n}",
+              "title": "StreamPrices request",
+              "tokensCl100k": 14,
+              "tokensO200k": 14
+            },
+            {
+              "id": "grpc.stream.method",
+              "lines": 11,
+              "path": "official/grpc-energy-price-dotnet/Services/PriceServiceImpl.cs",
+              "reason": "gRPC-only. Not in the shared total.",
+              "source": "    // Server streaming: emit `count` points one at a time over one HTTP/2 stream.\n    public override async Task StreamPrices(\n        StreamPricesRequest request, IServerStreamWriter<PricePoint> responseStream, ServerCallContext context)\n    {\n        var count = Clamp(request.Count);\n        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();\n        for (var i = 0; i < count && !context.CancellationToken.IsCancellationRequested; i++)\n        {\n            await responseStream.WriteAsync(MakePoint(i, now));\n        }\n    }",
+              "title": "StreamPrices override",
+              "tokensCl100k": 113,
+              "tokensO200k": 118
+            },
+            {
+              "id": "grpc.stream.client",
+              "lines": 7,
+              "path": "official/perf-lab/src/clients/grpcClient.js",
+              "reason": "gRPC-only. Not in the shared total.",
+              "source": "export async function streamGrpcPrices(baseUrl, count) {\n  let received = 0\n  for await (const _point of getClient(baseUrl).streamPrices({ count })) {\n    received += 1\n  }\n  return received\n}",
+              "title": "streamGrpcPrices",
+              "tokensCl100k": 49,
+              "tokensO200k": 51
+            }
+          ],
+          "lines": 80,
+          "name": "gRPC",
+          "tokensCl100k": 661,
+          "tokensO200k": 663
+        },
+        "rest": {
+          "counted": [
+            {
+              "id": "rest.getPrice.client",
+              "lines": 7,
+              "path": "official/perf-lab/src/clients/restClient.js",
+              "source": "export async function fetchEnergyPrice(baseUrl) {\n  const response = await fetch(`${baseUrl}/api/EnergyPrice/price`)\n  if (!response.ok) {\n    throw new Error(`REST failed (${response.status})`)\n  }\n  return response.json()\n}",
+              "title": "fetchEnergyPrice",
+              "tokensCl100k": 52,
+              "tokensO200k": 54
+            },
+            {
+              "id": "rest.history.client",
+              "lines": 8,
+              "path": "official/perf-lab/src/clients/restClient.js",
+              "source": "export async function fetchEnergyPriceHistory(baseUrl, count) {\n  const response = await fetch(`${baseUrl}/api/EnergyPrice/history?count=${count}`)\n  if (!response.ok) {\n    throw new Error(`REST history failed (${response.status})`)\n  }\n  const body = await response.json()\n  return Array.isArray(body) ? body.length : 0\n}",
+              "title": "fetchEnergyPriceHistory",
+              "tokensCl100k": 75,
+              "tokensO200k": 78
+            },
+            {
+              "id": "rest.getPrice.controller",
+              "lines": 9,
+              "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+              "source": "    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class EnergyPriceController : ControllerBase\n    {\n        [HttpGet(\"price\")]\n        public ActionResult<double> GetPrice()\n        {\n            return Ok(EnergyPriceService.GetPrice());\n        }",
+              "title": "GET /api/EnergyPrice/price",
+              "tokensCl100k": 51,
+              "tokensO200k": 55
+            },
+            {
+              "id": "rest.history.controller",
+              "lines": 5,
+              "path": "official/electric-company-ws/Controllers/EnergyPriceController.cs",
+              "source": "        [HttpGet(\"history\")]\n        public ActionResult<IEnumerable<PricePointDto>> GetHistory([FromQuery] int count = 1000)\n        {\n            return Ok(EnergyPriceService.GetPriceHistory(count));\n        }",
+              "title": "GET /api/EnergyPrice/history",
+              "tokensCl100k": 44,
+              "tokensO200k": 46
+            },
+            {
+              "id": "rest.host.controllers",
+              "lines": 1,
+              "path": "official/electric-company-ws/Program.cs",
+              "source": "            builder.Services.AddControllers();",
+              "title": "AddControllers",
+              "tokensCl100k": 6,
+              "tokensO200k": 6
+            },
+            {
+              "id": "rest.host.cors",
+              "lines": 8,
+              "path": "official/electric-company-ws/Program.cs",
+              "source": "            builder.Services.AddCors(options =>\n            {\n                options.AddPolicy(\"AllowAll\", policy =>\n                    policy\n                        .AllowAnyOrigin()\n                        .AllowAnyHeader()\n                        .AllowAnyMethod());\n            });",
+              "title": "CORS policy",
+              "tokensCl100k": 42,
+              "tokensO200k": 42
+            },
+            {
+              "id": "rest.host.map",
+              "lines": 4,
+              "path": "official/electric-company-ws/Program.cs",
+              "source": "            app.UseRouting();\n            app.UseCors(\"AllowAll\");\n\n            app.UseAuthorization();\n\n            app.MapControllers();",
+              "title": "Map controllers",
+              "tokensCl100k": 23,
+              "tokensO200k": 23
+            },
+            {
+              "id": "rest.billing.controller",
+              "lines": 33,
+              "path": "official/electric-company-ws/Controllers/BillingController.cs",
+              "source": "using Microsoft.AspNetCore.Mvc;\n\nnamespace EnergyPriceService.Controllers\n{\n    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class BillingController : ControllerBase\n    {\n        [HttpPost(\"calculate-monthly-bill\")]\n        public ActionResult<double> CalculateMonthlyBill([FromBody] CalculateMonthlyBillRequest request)\n        {\n            var result = BillingLogic.CalculateMonthlyBill(request.usageKWh, request.baseRatePerKWh, request.taxRatePercent);\n            return Ok(result);\n        }\n\n        [HttpPost(\"apply-late-fee\")]\n        public ActionResult<double> ApplyLateFee([FromBody] ApplyLateFeeRequest request)\n        {\n            var result = BillingLogic.ApplyLateFee(request.currentAmount, request.daysLate, request.dailyRatePercent);\n            return Ok(result);\n        }\n\n        [HttpPost(\"calculate-tax\")]\n        public ActionResult<double> CalculateTax([FromBody] CalculateTaxRequest request)\n        {\n            var result = BillingLogic.CalculateTax(request.amount, request.taxRatePercent);\n            return Ok(result);\n        }\n\n        [HttpPost(\"is-budget-billing-eligible\")]\n        public ActionResult<bool> IsBudgetBillingEligible([FromBody] IsBudgetBillingEligibleRequest request)\n        {\n            var result = BillingLogic.IsBudgetBillingEligible(request.averageMonthlyUsageKWh, request.thresholdKWh);\n            return Ok(result);\n        }\n    }\n}",
+              "title": "BillingController.cs",
+              "tokensCl100k": 273,
+              "tokensO200k": 282
+            },
+            {
+              "id": "rest.meter.controller",
+              "lines": 33,
+              "path": "official/electric-company-ws/Controllers/MeterController.cs",
+              "source": "using Microsoft.AspNetCore.Mvc;\n\nnamespace EnergyPriceService.Controllers\n{\n    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class MeterController : ControllerBase\n    {\n        [HttpPost(\"net-consumption\")]\n        public ActionResult<int> NetConsumptionKWh([FromBody] NetConsumptionRequest request)\n        {\n            var result = MeterLogic.NetConsumptionKWh(request.previousReadingKWh, request.currentReadingKWh);\n            return Ok(result);\n        }\n\n        [HttpPost(\"is-reading-valid\")]\n        public ActionResult<bool> IsReadingValid([FromBody] IsReadingValidRequest request)\n        {\n            var result = MeterLogic.IsReadingValid(request.previousReadingKWh, request.currentReadingKWh, request.maxAllowedJumpKWh);\n            return Ok(result);\n        }\n\n        [HttpPost(\"estimate-average-daily-usage\")]\n        public ActionResult<double> EstimateAverageDailyUsage([FromBody] EstimateAverageDailyUsageRequest request)\n        {\n            var result = MeterLogic.EstimateAverageDailyUsage(request.usageKWh, request.days);\n            return Ok(result);\n        }\n\n        [HttpPost(\"project-next-cycle-usage\")]\n        public ActionResult<int> ProjectNextCycleUsageKWh([FromBody] ProjectNextCycleUsageRequest request)\n        {\n            var result = MeterLogic.ProjectNextCycleUsageKWh(request.recentAvgDailyKWh, request.daysInCycle);\n            return Ok(result);\n        }\n    }\n}",
+              "title": "MeterController.cs",
+              "tokensCl100k": 283,
+              "tokensO200k": 295
+            },
+            {
+              "id": "rest.tariff.controller",
+              "lines": 41,
+              "path": "official/electric-company-ws/Controllers/TariffController.cs",
+              "source": "using Microsoft.AspNetCore.Mvc;\n\nnamespace EnergyPriceService.Controllers\n{\n    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class TariffController : ControllerBase\n    {\n        [HttpPost(\"determine-tier\")]\n        public ActionResult<int> DetermineTier([FromBody] DetermineTierRequest request)\n        {\n            var result = TariffLogic.DetermineTier(request.usageKWh, request.tier1ThresholdKWh, request.tier2ThresholdKWh);\n            return Ok(result);\n        }\n\n        [HttpPost(\"calculate-tiered-cost\")]\n        public ActionResult<double> CalculateTieredCost([FromBody] CalculateTieredCostRequest request)\n        {\n            var result = TariffLogic.CalculateTieredCost(\n                request.usageKWh,\n                request.baseRate,\n                request.tier1ThresholdKWh,\n                request.tier1Rate,\n                request.tier2ThresholdKWh,\n                request.tier2Rate,\n                request.tier3Rate\n            );\n            return Ok(result);\n        }\n\n        [HttpPost(\"apply-time-of-use-adjustment\")]\n        public ActionResult<double> ApplyTimeOfUseAdjustment([FromBody] ApplyTimeOfUseAdjustmentRequest request)\n        {\n            var result = TariffLogic.ApplyTimeOfUseAdjustment(\n                request.baseAmount,\n                request.peakHoursUsed,\n                request.offPeakHoursUsed,\n                request.peakMultiplier,\n                request.offPeakMultiplier\n            );\n            return Ok(result);\n        }\n    }\n}",
+              "title": "TariffController.cs",
+              "tokensCl100k": 293,
+              "tokensO200k": 304
+            },
+            {
+              "id": "rest.outage.controller",
+              "lines": 27,
+              "path": "official/electric-company-ws/Controllers/OutageController.cs",
+              "source": "using Microsoft.AspNetCore.Mvc;\n\nnamespace EnergyPriceService.Controllers\n{\n    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class OutageController : ControllerBase\n    {\n        [HttpPost(\"is-rebate-eligible\")]\n        public ActionResult<bool> IsRebateEligible([FromBody] IsRebateEligibleRequest request)\n        {\n            var result = OutageLogic.IsRebateEligible(request.outageMinutes, request.eligibilityThresholdMinutes);\n            return Ok(result);\n        }\n\n        [HttpPost(\"calculate-outage-rebate\")]\n        public ActionResult<double> CalculateOutageRebate([FromBody] CalculateOutageRebateRequest request)\n        {\n            var result = OutageLogic.CalculateOutageRebate(request.monthlyBillAmount, request.outageMinutes, request.minutesPerCredit, request.creditPerUnit);\n            return Ok(result);\n        }\n\n        [HttpPost(\"estimate-restoration-time\")]\n        public ActionResult<int> EstimateRestorationTimeMinutes([FromBody] EstimateRestorationTimeRequest request)\n        {\n            var result = OutageLogic.EstimateRestorationTimeMinutes(request.baseRepairMinutes, request.crewCount, request.severityLevel);\n            return Ok(result);\n        }\n    }\n}",
+              "title": "OutageController.cs",
+              "tokensCl100k": 245,
+              "tokensO200k": 251
+            },
+            {
+              "id": "rest.loyalty.controller",
+              "lines": 33,
+              "path": "official/electric-company-ws/Controllers/LoyaltyController.cs",
+              "source": "using Microsoft.AspNetCore.Mvc;\n\nnamespace EnergyPriceService.Controllers\n{\n    [ApiController]\n    [Route(\"api/[controller]\")]\n    public class LoyaltyController : ControllerBase\n    {\n        [HttpPost(\"calculate-loyalty-discount-percent\")]\n        public ActionResult<double> CalculateLoyaltyDiscountPercent([FromBody] CalculateLoyaltyDiscountPercentRequest request)\n        {\n            var result = LoyaltyLogic.CalculateLoyaltyDiscountPercent(request.yearsAsCustomer, request.onTimePaymentCount);\n            return Ok(result);\n        }\n\n        [HttpPost(\"is-vip-eligible\")]\n        public ActionResult<bool> IsVipEligible([FromBody] IsVipEligibleRequest request)\n        {\n            var result = LoyaltyLogic.IsVipEligible(request.yearsAsCustomer, request.averageMonthlyBillAmount);\n            return Ok(result);\n        }\n\n        [HttpPost(\"reward-points-for-usage\")]\n        public ActionResult<int> RewardPointsForUsage([FromBody] RewardPointsForUsageRequest request)\n        {\n            var result = LoyaltyLogic.RewardPointsForUsage(request.usageKWh);\n            return Ok(result);\n        }\n\n        [HttpPost(\"apply-loyalty-discount\")]\n        public ActionResult<double> ApplyLoyaltyDiscount([FromBody] ApplyLoyaltyDiscountRequest request)\n        {\n            var result = LoyaltyLogic.ApplyLoyaltyDiscount(request.amount, request.discountPercent);\n            return Ok(result);\n        }\n    }\n}",
+              "title": "LoyaltyController.cs",
+              "tokensCl100k": 290,
+              "tokensO200k": 293
+            },
+            {
+              "id": "rest.billing.dtos",
+              "lines": 23,
+              "path": "official/electric-company-ws/Dtos/BillingDtos.cs",
+              "source": "namespace EnergyPriceService;\n\npublic class CalculateMonthlyBillRequest\n{\n    public double usageKWh { get; set; }\n    public double baseRatePerKWh { get; set; }\n    public double taxRatePercent { get; set; }\n}\n\npublic class ApplyLateFeeRequest\n{\n    public double currentAmount { get; set; }\n    public int daysLate { get; set; }\n    public double dailyRatePercent { get; set; }\n}\n\npublic class CalculateTaxRequest\n{\n    public double amount { get; set; }\n    public double taxRatePercent { get; set; }\n}\n\npublic class IsBudgetBillingEligibleRequest\n{\n    public double averageMonthlyUsageKWh { get; set; }\n    public double thresholdKWh { get; set; }\n}",
+              "title": "BillingDtos.cs",
+              "tokensCl100k": 163,
+              "tokensO200k": 161
+            },
+            {
+              "id": "rest.meter.dtos",
+              "lines": 22,
+              "path": "official/electric-company-ws/Dtos/MeterDtos.cs",
+              "source": "namespace EnergyPriceService;\n\npublic class NetConsumptionRequest\n{\n    public int previousReadingKWh { get; set; }\n    public int currentReadingKWh { get; set; }\n}\n\npublic class IsReadingValidRequest\n{\n    public int previousReadingKWh { get; set; }\n    public int currentReadingKWh { get; set; }\n    public int maxAllowedJumpKWh { get; set; }\n}\n\npublic class EstimateAverageDailyUsageRequest\n{\n    public double usageKWh { get; set; }\n    public int days { get; set; }\n}\n\npublic class ProjectNextCycleUsageRequest\n{\n    public int recentAvgDailyKWh { get; set; }\n    public int daysInCycle { get; set; }\n}",
+              "title": "MeterDtos.cs",
+              "tokensCl100k": 157,
+              "tokensO200k": 156
+            },
+            {
+              "id": "rest.tariff.dtos",
+              "lines": 25,
+              "path": "official/electric-company-ws/Dtos/TariffDtos.cs",
+              "source": "namespace EnergyPriceService;\n\npublic class DetermineTierRequest\n{\n    public double usageKWh { get; set; }\n    public double tier1ThresholdKWh { get; set; }\n    public double tier2ThresholdKWh { get; set; }\n}\n\npublic class CalculateTieredCostRequest\n{\n    public double usageKWh { get; set; }\n    public double baseRate { get; set; }\n    public double tier1ThresholdKWh { get; set; }\n    public double tier1Rate { get; set; }\n    public double tier2ThresholdKWh { get; set; }\n    public double tier2Rate { get; set; }\n    public double tier3Rate { get; set; }\n}\n\npublic class ApplyTimeOfUseAdjustmentRequest\n{\n    public double baseAmount { get; set; }\n    public int peakHoursUsed { get; set; }\n    public int offPeakHoursUsed { get; set; }\n    public double peakMultiplier { get; set; }\n    public double offPeakMultiplier { get; set; }\n}",
+              "title": "TariffDtos.cs",
+              "tokensCl100k": 221,
+              "tokensO200k": 220
+            },
+            {
+              "id": "rest.outage.dtos",
+              "lines": 19,
+              "path": "official/electric-company-ws/Dtos/OutageDtos.cs",
+              "source": "namespace EnergyPriceService;\n\npublic class IsRebateEligibleRequest\n{\n    public int outageMinutes { get; set; }\n    public int eligibilityThresholdMinutes { get; set; }\n}\n\npublic class CalculateOutageRebateRequest\n{\n    public double monthlyBillAmount { get; set; }\n    public int outageMinutes { get; set; }\n    public int minutesPerCredit { get; set; }\n    public double creditPerUnit { get; set; }\n}\n\npublic class EstimateRestorationTimeRequest\n{\n    public int baseRepairMinutes { get; set; }\n    public int crewCount { get; set; }\n    public int severityLevel { get; set; }\n}",
+              "title": "OutageDtos.cs",
+              "tokensCl100k": 142,
+              "tokensO200k": 140
+            },
+            {
+              "id": "rest.loyalty.dtos",
+              "lines": 20,
+              "path": "official/electric-company-ws/Dtos/LoyaltyDtos.cs",
+              "source": "namespace EnergyPriceService;\n\npublic class CalculateLoyaltyDiscountPercentRequest\n{\n    public int yearsAsCustomer { get; set; }\n    public int onTimePaymentCount { get; set; }\n}\n\npublic class IsVipEligibleRequest\n{\n    public int yearsAsCustomer { get; set; }\n    public double averageMonthlyBillAmount { get; set; }\n}\n\npublic class RewardPointsForUsageRequest\n{\n    public double usageKWh { get; set; }\n}\n\npublic class ApplyLoyaltyDiscountRequest\n{\n    public double amount { get; set; }\n    public double discountPercent { get; set; }\n}",
+              "title": "LoyaltyDtos.cs",
+              "tokensCl100k": 133,
+              "tokensO200k": 130
+            }
+          ],
+          "dependency": [],
+          "deploy": [
+            {
+              "id": "rest.deploy.dockerfile",
+              "lines": 16,
+              "path": "official/electric-company-ws/Dockerfile",
+              "source": "# Build stage\nFROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nWORKDIR /src\n\nCOPY be.csproj ./\nRUN dotnet restore ./be.csproj\n\nCOPY . ./\nRUN dotnet publish ./be.csproj -c Release -o out\n\n# Runtime stage\nFROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final\nWORKDIR /app\n\n# No TLS cert in the container -> Kestrel serves cleartext HTTP/1.1 + h2c on $PORT;\n# demo-ecws-h2 sets ingress transport to \"http2\"; demo-ecws uses \"http\".\nENV PORT=8080\nEXPOSE 8080\n\nCOPY --from=build /src/out ./\nENTRYPOINT [\"dotnet\", \"be.dll\"]",
+              "title": "REST Dockerfile",
+              "tokensCl100k": 169,
+              "tokensO200k": 168
+            }
+          ],
+          "domain": [],
+          "excluded": [
+            {
+              "id": "rest.host.transport",
+              "lines": 40,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Transport tuning. Graftcode's gateway binary is left out the same way.",
+              "source": "            // Serve REST over HTTPS with HTTP/2 (h2) so it matches the gRPC and\n            // Graftcode paths in the perf-lab benchmark. Browsers require TLS for\n            // HTTP/2, so we load the shared local mkcert PEM. HTTP/1.1 stays\n            // enabled as a fallback for non-h2 clients.\n            var certPath = Environment.GetEnvironmentVariable(\"TLS_CERT\")\n                ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost.pem\");\n            var keyPath = Environment.GetEnvironmentVariable(\"TLS_KEY\")\n                ?? Path.Combine(builder.Environment.ContentRootPath, \"..\", \"certs\", \"localhost-key.pem\");\n\n            var hasCert = File.Exists(certPath) && File.Exists(keyPath);\n            // Local: fixed port 8090 over HTTPS. Container (Azure Container Apps):\n            // listen on $PORT in cleartext — the ingress terminates TLS and offers\n            // HTTP/2 to the browser.\n            var port = hasCert ? 8090 : int.Parse(Environment.GetEnvironmentVariable(\"PORT\") ?? \"8080\");\n\n            builder.WebHost.ConfigureKestrel(options =>\n            {\n                options.ListenAnyIP(port, listenOptions =>\n                {\n                    if (hasCert)\n                    {\n                        // HTTP/1.1 + HTTP/2 negotiated via ALPN over TLS.\n                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;\n                        // Round-trip the PEM through PFX so Schannel (Windows) can\n                        // access the private key; using the PEM cert directly fails\n                        // the TLS handshake on Windows.\n                        var pem = X509Certificate2.CreateFromPemFile(certPath, keyPath);\n                        var cert = new X509Certificate2(pem.Export(X509ContentType.Pfx));\n                        listenOptions.UseHttps(cert);\n                    }\n                    else\n                    {\n                        var cleartextHttp2 = string.Equals(\n                            Environment.GetEnvironmentVariable(\"KESTREL_CLEARTEXT_HTTP2\"),\n                            \"true\",\n                            StringComparison.OrdinalIgnoreCase);\n                        listenOptions.Protocols = cleartextHttp2\n                            ? HttpProtocols.Http2\n                            : HttpProtocols.Http1;\n                    }\n                });\n            });",
+              "title": "Kestrel, TLS, HTTP version",
+              "tokensCl100k": 452,
+              "tokensO200k": 451
+            },
+            {
+              "id": "rest.host.swagger",
+              "lines": 2,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Optional API explorer, not required to call getPrice.",
+              "source": "            builder.Services.AddEndpointsApiExplorer();\n            builder.Services.AddSwaggerGen();",
+              "title": "Swagger services",
+              "tokensCl100k": 15,
+              "tokensO200k": 15
+            },
+            {
+              "id": "rest.host.swagger-ui",
+              "lines": 2,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Optional API explorer, not required to call getPrice.",
+              "source": "            app.UseSwagger();\n            app.UseSwaggerUI();",
+              "title": "Swagger UI",
+              "tokensCl100k": 11,
+              "tokensO200k": 11
+            },
+            {
+              "id": "rest.host.status",
+              "lines": 2,
+              "path": "official/electric-company-ws/Program.cs",
+              "reason": "Probe endpoint, not part of the price call.",
+              "source": "            // Health check endpoint for Container App probes\n            app.MapGet(\"/status\", () => Results.Ok(new { status = \"healthy\" }));",
+              "title": "/status health check",
+              "tokensCl100k": 30,
+              "tokensO200k": 30
+            }
+          ],
+          "extra": [],
+          "lines": 318,
+          "name": "REST",
+          "tokensCl100k": 2493,
+          "tokensO200k": 2536
+        }
+      },
+      "versus": {
+        "grpc": {
+          "linesPercentFewer": 87.5,
+          "linesTimes": 8,
+          "tokensCl100kPercentFewer": 90.8,
+          "tokensCl100kTimes": 10.8,
+          "tokensO200kPercentFewer": 90.5
+        },
+        "rest": {
+          "linesPercentFewer": 96.9,
+          "linesTimes": 31.8,
+          "tokensCl100kPercentFewer": 97.6,
+          "tokensCl100kTimes": 40.9,
+          "tokensO200kPercentFewer": 97.5
+        }
+      }
+    }
+  }
+}

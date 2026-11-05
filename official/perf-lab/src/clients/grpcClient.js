@@ -1,10 +1,11 @@
-// gRPC-Web client built on ConnectRPC (talks to the .NET Kestrel gRPC-Web service).
-import { createGrpcWebTransport } from '@connectrpc/connect-web'
+// Handwritten gRPC-Web client. priceProto.js is the generated-code stand-in and is not counted here.
 import { createPromiseClient } from '@connectrpc/connect'
-import { PriceService } from './priceProto'
+import { createGrpcWebTransport } from '@connectrpc/connect-web'
+import { PriceService } from '../priceProto'
 
-// Reuse one client per base URL so the underlying HTTP/2 connection is reused.
+// metrics:begin grpc.getPrice.client
 const clientCache = new Map()
+
 function getClient(baseUrl) {
   const key = baseUrl.replace(/\/$/, '')
   if (!clientCache.has(key)) {
@@ -14,18 +15,19 @@ function getClient(baseUrl) {
   return clientCache.get(key)
 }
 
-// Trivial unary call (single price).
 export async function callGrpcGetPrice(baseUrl) {
   await getClient(baseUrl).getPrice({})
 }
+// metrics:end grpc.getPrice.client
 
-// Large payload: one unary call returning `count` price points.
+// metrics:begin grpc.history.client
 export async function callGrpcGetPriceHistory(baseUrl, count) {
-  const res = await getClient(baseUrl).getPriceHistory({ count })
-  return res.points?.length ?? 0
+  const response = await getClient(baseUrl).getPriceHistory({ count })
+  return response.points?.length ?? 0
 }
+// metrics:end grpc.history.client
 
-// Server streaming: receive `count` points one at a time over one HTTP/2 stream.
+// metrics:begin grpc.stream.client
 export async function streamGrpcPrices(baseUrl, count) {
   let received = 0
   for await (const _point of getClient(baseUrl).streamPrices({ count })) {
@@ -33,3 +35,4 @@ export async function streamGrpcPrices(baseUrl, count) {
   }
   return received
 }
+// metrics:end grpc.stream.client

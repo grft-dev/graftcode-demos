@@ -1,7 +1,6 @@
 namespace EnergyPriceService.Dtos;
 
-// JSON counterpart of the gRPC PricePoint message, so the REST vs gRPC
-// large-payload comparison carries the same data.
+// Same shape as REST (electric-company-ws) and gRPC PricePoint for fair large-payload comparison.
 public class PricePointDto
 {
     public long Timestamp { get; set; }
