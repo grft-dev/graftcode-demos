@@ -23,7 +23,8 @@ try {
   console.log('')
   console.log(prompt(tech))
   console.log('')
-  console.log('The chat shows the token usage when the agent finishes. Repeat with the other technology to compare.')
+  console.log('A chat does not write a comparison page. For that, from experiments/ai-integration run: node verify.mjs')
+  console.log('It writes .scratch/report.html and opens it. See "Your own comparison page" in the README.')
 } catch (error) {
   console.error(error.message)
   process.exit(1)

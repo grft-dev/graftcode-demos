@@ -1,11 +1,11 @@
 /**
  * Write report.html from runs.
  *
- *   node report.mjs                 committed runs in results/
- *   node report.mjs --from .scratch your own runs
+ *   node report.mjs                                  committed runs in results/
+ *   node report.mjs --from .scratch --out .scratch/report.html
  */
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join } from 'node:path'
 import { project } from './examples.mjs'
 import { groups } from './results.mjs'
 import { root } from './workspace.mjs'
@@ -136,11 +136,15 @@ const html = `<!doctype html>
     <p class="lede">Cursor's agent gets the same starter project and the same prompt. The only difference is the project rule: a REST rule (controller, request, and response per method, plus a typed fetch client), or a Graftcode rule with the generated method list. The C# business logic stays unchanged. Token counts are what the Cursor SDK reported.</p>
     ${found.map(section).join('\n')}
     <h2>Try it yourself</h2>
-    <p>From <code>experiments/ai-integration</code>, run <code>node prepare.mjs graftcode ../../../try-graftcode</code> and <code>node prepare.mjs rest ../../../try-rest</code>. Open each folder in Cursor and send the prompt the script prints. To measure automatically, use <code>node run.mjs rest</code> and <code>node run.mjs graftcode</code>.</p>
+    <p>From <code>experiments/ai-integration</code>, run <code>npm install</code> and <code>node verify.mjs</code>. It runs both agents and writes <code>.scratch/report.html</code>, which is this page for your own runs. To send the prompt yourself in a Cursor chat, use <code>node prepare.mjs</code>. A chat does not write this page.</p>
   </main>
 </body>
 </html>
 `
 
-writeFileSync(join(root, 'report.html'), html)
-console.log('Wrote', join(root, 'report.html'))
+const outIndex = process.argv.indexOf('--out')
+const outArg = outIndex === -1 || !process.argv[outIndex + 1] ? 'report.html' : process.argv[outIndex + 1]
+const outFile = isAbsolute(outArg) ? outArg : join(root, outArg)
+mkdirSync(dirname(outFile), { recursive: true })
+writeFileSync(outFile, html)
+console.log('Wrote', outFile)

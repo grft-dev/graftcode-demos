@@ -29,23 +29,43 @@ node prepare.mjs graftcode ../../../try-graftcode
 node prepare.mjs rest ../../../try-rest
 ```
 
-`prepare.mjs` copies [`starter/`](starter) and that technology's rules into an empty folder, then prints the prompt. Open each folder in Cursor, start a new Agent chat, send the prompt, and compare the token usage the chat reports. Use the same model for both.
+`prepare.mjs` copies [`starter/`](starter) and that technology's rules into an empty folder, then prints the prompt. Open each folder in Cursor, start a new Agent chat, and send the prompt. Use the same model for both. A chat does not write a comparison page. For that, use the next section.
 
 The rule files are short on purpose, so you can edit them to match your own team's standards and see how the numbers change.
 
-## Measure it with the Cursor SDK
+## Your own comparison page
 
-This runs the agent headless, checks each result, and records the usage the SDK reports. It bills your Cursor account. Sign in with the Cursor SDK, or set `CURSOR_API_KEY`.
+This runs the agent for REST and for Graftcode, checks each result, and writes a page you can open. It bills your Cursor account. Sign in with the Cursor SDK, or set `CURSOR_API_KEY`.
 
 ```powershell
 npm install
+node verify.mjs
+```
+
+When it finishes, open `.scratch/report.html` (the script opens it for you). The page shows median total tokens, every run, and how many passed. The same numbers are printed in the terminal. `.scratch/` is ignored by git.
+
+`node verify.mjs --runs 5` changes how many times each side runs. The default is 3, which is the minimum for a verdict: both sides need at least 3 passing runs. `--model <id>` picks another model. Add `--no-open` to skip opening the browser.
+
+The same thing, as separate commands:
+
+```powershell
 node run.mjs rest --runs 3
 node run.mjs graftcode --runs 3
 node compare.mjs --from .scratch
-node report.mjs --from .scratch
+node report.mjs --from .scratch --out .scratch/report.html
 ```
 
-`--model <id>` picks another model. Runs are written to `.scratch/` (ignored by git), with each agent's files in a snapshot so you can see what it wrote. `node publish.mjs --from .scratch/<folder>` replaces `results/` with your runs.
+Runs land in `.scratch/<date>-<model>/<technology>/runs.json`, with each agent's files in a snapshot. `node publish.mjs --from .scratch/<folder>` replaces `results/` with your runs. [`report.html`](report.html) in this folder is the published comparison, not yours.
+
+## Comparing a manual chat
+
+`prepare.mjs` does not record the chat. After both chats are done, compare them by hand:
+
+- Use the same model in both folders.
+- If the chat shows a token count (the `…` menu on the reply, when that control is present), write down the total for each folder.
+- The reliable breakdown is [cursor.com/dashboard/usage](https://cursor.com/dashboard/usage). Find the two requests by time and model, and compare input, output, and total tokens.
+
+That is one run each, so the gap will not match the medians in the table above. Those come from 8 REST runs and 5 Graftcode runs.
 
 ## Run the Graftcode example
 
@@ -85,8 +105,9 @@ The REST example runs with `dotnet run --project backend` and `npx vite`.
 | `prompt.txt`, `methods.json` | The prompt, and the methods acceptance requires |
 | `rules/` | The project rule for each technology |
 | [`official/perf-lab/results`](../../official/perf-lab/results) | The median run's finished project for each technology |
-| `prepare.mjs` | Prepare a folder for a manual Cursor chat |
+| `prepare.mjs` | Prepare a folder for a manual Cursor chat. Does not write a comparison |
+| `verify.mjs` | Run both agents and write `.scratch/report.html` |
 | `run.mjs`, `accept.mjs` | Run the agent with the SDK, and check the result |
-| `compare.mjs`, `report.mjs`, `publish.mjs` | Summarize, write `report.html`, publish runs |
+| `compare.mjs`, `report.mjs`, `publish.mjs` | Summarize, write the comparison page, publish runs |
 | `export-page.mjs` | Write the numbers the perf-lab page shows (`--check` verifies them) |
 | `tools/graft-setup.mjs` | One-command Graftcode client setup |

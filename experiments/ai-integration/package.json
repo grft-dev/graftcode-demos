@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Measure assistant tokens for the same energy-price task with REST and with Graftcode.",
   "scripts": {
-    "compare": "node compare.mjs"
+    "compare": "node compare.mjs",
+    "verify": "node verify.mjs"
   },
   "dependencies": {
     "@cursor/sdk": "^1.2.0",

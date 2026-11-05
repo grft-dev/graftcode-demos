@@ -98,11 +98,18 @@ export function AiTokenCost() {
         <h4>Try it yourself</h4>
         <pre><code>{`git clone https://github.com/grft-dev/graftcode-demos.git
 cd graftcode-demos/${path}
-node prepare.mjs graftcode ../../../try-graftcode
-node prepare.mjs rest ../../../try-rest`}</code></pre>
+npm install
+node verify.mjs`}</code></pre>
         <p>
-          Open each folder in Cursor, start a new Agent chat, and send the prompt the script prints. Compare the token
-          usage with the same model. The{' '}
+          <code>verify.mjs</code> runs the agent for REST and for Graftcode, three times each, checks that every method
+          is wired, and writes <code>.scratch/report.html</code>. It opens that page. The page shows the median tokens,
+          every run, and how many passed. This bills your Cursor account. Sign in with the Cursor SDK, or set{' '}
+          <code>CURSOR_API_KEY</code>. Add <code>--runs 5</code> to change how many times each side runs.
+        </p>
+        <p>
+          To send the prompt yourself in a Cursor chat instead, run{' '}
+          <code>node prepare.mjs graftcode ../../../try-graftcode</code> and the same command for rest. A chat does not
+          write this page. The{' '}
           <a href={`${REPO}${path}/rules`} target="_blank" rel="noopener noreferrer">rules</a> are a starting point you can
           change to match your team&apos;s standards, and the{' '}
           <a href={`${REPO}${PROJECTS}`} target="_blank" rel="noopener noreferrer">results</a> show what the agent
