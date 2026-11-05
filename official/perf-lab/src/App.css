@@ -537,6 +537,55 @@
   font-size: 0.92em;
 }
 
+.token-bars {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 1.25rem;
+}
+
+.token-bars h4 {
+  margin: 0;
+}
+
+.token-bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 96px;
+  gap: 12px;
+  align-items: center;
+}
+
+.token-bar-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.token-bar-track {
+  height: 14px;
+  background: #e7e5e4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.token-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.token-bar-fill--rest {
+  background: #0f766e;
+}
+
+.token-bar-fill--graft {
+  background: #b45309;
+}
+
+.token-bar-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
+  color: #111827;
+}
+
 .metrics-table-wrap {
   overflow-x: auto;
 }
@@ -731,6 +780,11 @@
   .metrics-table th,
   .metrics-table td {
     padding: 0.5rem 0.55rem;
+  }
+
+  .token-bar-row {
+    grid-template-columns: 88px 1fr 72px;
+    gap: 8px;
   }
 
   .metric-columns {

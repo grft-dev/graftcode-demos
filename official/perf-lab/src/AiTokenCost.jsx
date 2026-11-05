@@ -20,6 +20,28 @@ function Snippet({ snippet, open }) {
   )
 }
 
+function TokenBars() {
+  const rows = STACKS.map((stack) => data.stacks[stack])
+  const max = Math.max(...rows.map((row) => row.totalTokens), 1)
+  return (
+    <div className="token-bars">
+      <h4>Median total tokens</h4>
+      {rows.map((row) => (
+        <div className="token-bar-row" key={row.name}>
+          <div className="token-bar-name">{row.name}</div>
+          <div className="token-bar-track" role="presentation">
+            <div
+              className={`token-bar-fill token-bar-fill--${row.name === 'REST' ? 'rest' : 'graft'}`}
+              style={{ width: `${(row.totalTokens / max) * 100}%` }}
+            />
+          </div>
+          <div className="token-bar-num">{number(row.totalTokens)}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function AiTokenCost() {
   const { rest, graftcode } = data.stacks
   const path = data.repoPath
@@ -35,6 +57,8 @@ export function AiTokenCost() {
         typed <code>fetch</code> client. Graftcode called the generated client directly, using the C# name with a
         lowercase first letter.
       </p>
+
+      <TokenBars />
 
       <div className="metrics-table-wrap">
         <table className="metrics-table">
