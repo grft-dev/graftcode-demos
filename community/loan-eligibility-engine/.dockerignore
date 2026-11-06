@@ -1,0 +1,5 @@
+# Never send the host's Maven output into the image.
+# Without this, a local `mvn package` leaves .class files in target/ which
+# `COPY .` would copy in, and `mvn package` (not `clean package`) would leave
+# them there — ending up in the JAR that Graftcode Gateway exposes.
+target/
