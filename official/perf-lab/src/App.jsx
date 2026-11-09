@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import './App.css'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
 import { graftGetPrice } from './clients/graftClient'
@@ -8,9 +8,9 @@ import { AiTokenCost } from './AiTokenCost'
 import {
   configureGraftForHttpMode,
   HTTP_BACKEND_MODE_OPTIONS,
-  isGraftTransportSwitchAvailable,
   isHttpBackendSwitchAvailable,
   loadHttpBackendMode,
+  loadRestHttpMode,
   resolveHttpBackendGrpcUrl,
   resolveHttpBackendRestUrl,
   saveHttpBackendMode,
@@ -153,21 +153,19 @@ function App() {
   const [integrationTech, setIntegrationTech] = useState('REST')
 
   const httpBackendSwitchVisible = isHttpBackendSwitchAvailable()
-  const [httpBackendMode, setHttpBackendMode] = useState(() => {
-    const mode = loadHttpBackendMode()
-    configureGraftForHttpMode(mode)
-    return mode
-  })
+  const [httpBackendModePicker, setHttpBackendModePicker] = useState(() => loadRestHttpMode())
+  const httpBackendMode = httpBackendSwitchVisible ? httpBackendModePicker : loadHttpBackendMode()
+
+  useLayoutEffect(() => {
+    configureGraftForHttpMode(httpBackendMode)
+  }, [httpBackendMode])
+
   const restBaseUrl = resolveHttpBackendRestUrl(httpBackendMode)
   const grpcBaseUrl = resolveHttpBackendGrpcUrl(httpBackendMode)
 
   const onHttpBackendModeChange = (value) => {
     saveHttpBackendMode(value)
-    if (isGraftTransportSwitchAvailable()) {
-      window.location.reload()
-      return
-    }
-    setHttpBackendMode(value)
+    setHttpBackendModePicker(value)
   }
 
   const getEnergyPrice = async () => {

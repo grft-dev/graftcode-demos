@@ -78,7 +78,9 @@ export function resolveGraftWsUrl(mode) {
   return mode === 'http1' ? http1 : http2
 }
 
-/** Runtime host for GraftConfig (WebSocket on HTTP/1.1, HTTPS `/h2` on HTTP/2). */
+/**
+ * Runtime host for GraftConfig (WebSocket on HTTP/1.1, HTTPS `/h2` on HTTP/2 route).
+ */
 export function resolveGraftRuntimeHost(mode) {
   const localH2Path = import.meta.env.VITE_GRAFT_H2_PATH ?? '/graft/h2'
   const useLocalH2Transport =

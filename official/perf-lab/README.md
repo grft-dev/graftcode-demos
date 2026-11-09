@@ -45,7 +45,7 @@ Copy values from [`.env.example`](.env.example) into `.env.local` (local Docker)
 | `*_HTTP1` | `http://localhost:8090` or Azure `demo-ecws` (`ingress_transport=http`) | `http://localhost:5173/grpc` or Azure `demo-grpc-h1` | `ws://localhost:5173/graft-ws` or Azure `demo-ecbe` `wss://…/ws` |
 | `*_HTTP2` | Azure `demo-ecws-h2` | Azure `demo-grpc` | Azure `demo-ecbe-h2` `https://…/h2` (ingress `http2` → gg `:81`; requires gg + ACA CORS) |
 
-The in-app **HTTP version** control switches all three stacks together. Choice is stored in `localStorage` (`perf-lab-http-mode`). When HTTP/1 and HTTP/2 URLs are identical (e.g. `npm run dev:azure` with [`.env.dev`](.env.dev)), the picker is hidden.
+REST, gRPC, and Graft use **HTTP/1.1** on `/`. Open **`/http2`** (e.g. `http://localhost:5173/http2` or `…/graftcode-demos/http2` on GitHub Pages) for Azure **HTTP/2** twins (Graft → `https://…/h2`). The in-app HTTP version picker is disabled; set `HTTP_BACKEND_HTTP2_UI_ENABLED` in `httpBackendConfig.js` to restore it for experiments.
 
 Legacy fallbacks if pairs are omitted: `VITE_REST_URL`, `VITE_GRPC_URL`, `VITE_GRAFT_WS_URL`.
 
@@ -56,7 +56,7 @@ Legacy fallbacks if pairs are omitted: `VITE_REST_URL`, `VITE_GRPC_URL`, `VITE_G
 - **gRPC stream** with one point per call is mainly for protocol comparison; streaming wins on large payloads (not shown in the UI at the moment).
 - **Graftcode** goes through the gateway and Hypertube protocol (WebSocket), which adds work per call compared to direct HTTP — the trade-off is zero handwritten integration code.
 
-Use **HTTP/2** in the picker to put REST, gRPC, and Graft on the same Azure network path; use **HTTP/1.1** for local Docker + Vite proxies.
+Use **`/http2`** for REST, gRPC, and Graft on the Azure h2 twins. Use **`/`** for local Docker + Vite proxies (HTTP/1.1).
 
 ## Local development
 

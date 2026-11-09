@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
@@ -5,8 +7,21 @@ import { h2cProxy } from './vite-graft-proxy.js'
 
 const r = (p) => fileURLToPath(new URL(p, import.meta.url))
 
+function ghPagesSpaFallback() {
+  return {
+    name: 'gh-pages-spa-fallback',
+    closeBundle() {
+      if (!process.env.GITHUB_ACTIONS) return
+      const dist = path.resolve('dist')
+      const index = path.join(dist, 'index.html')
+      const fallback = path.join(dist, '404.html')
+      if (fs.existsSync(index)) fs.copyFileSync(index, fallback)
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), h2cProxy()],
+  plugins: [react(), h2cProxy(), ghPagesSpaFallback()],
   base: process.env.GITHUB_ACTIONS
     ? `/${process.env.GITHUB_REPOSITORY?.split('/')[1] ?? 'graftcode-demos'}/`
     : '/',
