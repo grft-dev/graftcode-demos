@@ -43,7 +43,7 @@ Copy values from [`.env.example`](.env.example) into `.env.local` (local Docker)
 | Variable pair | REST | gRPC (browser) | Graftcode |
 |---------------|------|----------------|-----------|
 | `*_HTTP1` | `http://localhost:8090` or Azure `demo-ecws` (`ingress_transport=http`) | `http://localhost:5173/grpc` or Azure `demo-grpc-h1` | `ws://localhost:5173/graft-ws` or Azure `demo-ecbe` `wss://…/ws` |
-| `*_HTTP2` | Azure `demo-ecws-h2` | Azure `demo-grpc` | Azure `demo-ecbe-h2` `wss://…/ws` |
+| `*_HTTP2` | Azure `demo-ecws-h2` | Azure `demo-grpc` | Azure `demo-ecbe-h2` `https://…/h2` (ingress `http2` → gg `:81`; requires gg + ACA CORS) |
 
 The in-app **HTTP version** control switches all three stacks together. Choice is stored in `localStorage` (`perf-lab-http-mode`). When HTTP/1 and HTTP/2 URLs are identical (e.g. `npm run dev:azure` with [`.env.dev`](.env.dev)), the picker is hidden.
 

@@ -45,4 +45,8 @@ export function resolveHttpBackendGraftWsUrl(mode) {
   return resolveGraftWsUrl(mode)
 }
 
-export { applyGraftConfigHost } from './graftConfig'
+export {
+  applyGraftConfigHost,
+  configureGraftForHttpMode,
+  isGraftTransportSwitchAvailable,
+} from './graftConfig'
