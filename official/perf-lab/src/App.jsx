@@ -172,6 +172,7 @@ function App() {
 
   const getEnergyPrice = async () => {
     try {
+      configureGraftHost(applyGraftConfigHost(httpBackendMode))
       const calculatedPrice = await graftGetPrice()
       setPrice(calculatedPrice)
     } catch (err) {
@@ -304,6 +305,7 @@ function App() {
       patchBenchmarkPath('grpcStream', { phase: 'done', current: count })
 
       const graftCall = async () => {
+        configureGraftHost(applyGraftConfigHost(httpBackendMode))
         await graftGetPrice()
       }
       patchBenchmarkPath('graftcode', { phase: 'baseline' })
