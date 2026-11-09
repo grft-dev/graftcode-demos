@@ -8,7 +8,7 @@ npm ci
 npm run metrics:check
 ```
 
-Inputs hash: `e97fda4e28860c4ee336ebf795a49b0f685476beabace27b2a9c608f49d0bfd1`
+Inputs hash: `8796bba5f50d88397c3dc30580855f6bb8b64936668b05c6c28405f82d230a53`
 
 Counted text is the source inside `metrics:begin` / `metrics:end` markers (or a whole file listed in `scripts/metrics.manifest.json`). Lines are non-blank lines of that text. Tokens are `js-tiktoken` `cl100k_base` and `o200k_base` of that same text. This is the size of handwritten integration code, not tokens spent by a live assistant.
 
@@ -20,12 +20,12 @@ Domain files are identical across REST and Graftcode and are not counted. Transp
 | --- | ---: | ---: | ---: |
 | REST | 29 | 174 | 180 |
 | gRPC | 44 | 365 | 361 |
-| Graftcode | 7 | 42 | 43 |
+| Graftcode | 3 | 15 | 16 |
 
 | Comparison | Lines | cl100k | o200k |
 | --- | ---: | ---: | ---: |
-| REST → Graftcode | 75.9% | 75.9% | 76.1% |
-| gRPC → Graftcode | 84.1% | 88.5% | 88.1% |
+| REST → Graftcode | 89.7% | 91.4% | 91.1% |
+| gRPC → Graftcode | 93.2% | 95.9% | 95.6% |
 
 Positive means Graftcode is smaller. The formula is `(other - graftcode) / other`.
 
@@ -37,11 +37,11 @@ getPrice, getPriceHistory, and the REST billing, meter, tariff, outage, and loya
 | --- | ---: | ---: | ---: |
 | REST | 318 | 2493 | 2536 |
 | gRPC | 80 | 661 | 663 |
-| Graftcode | 10 | 61 | 63 |
+| Graftcode | 6 | 34 | 36 |
 
 | Comparison | Lines | cl100k | o200k |
 | --- | ---: | ---: | ---: |
-| REST → Graftcode | 96.9% | 97.6% | 97.5% |
-| gRPC → Graftcode | 87.5% | 90.8% | 90.5% |
+| REST → Graftcode | 98.1% | 98.6% | 98.6% |
+| gRPC → Graftcode | 92.5% | 94.9% | 94.6% |
 
 Dockerfile lines (separate from the table above): REST 16, gRPC 16, Graftcode 23.
