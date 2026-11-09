@@ -1,11 +1,6 @@
-import { EnergyPriceService, GraftConfig } from '@graft/nuget-energypriceservice'
+import { EnergyPriceService } from '@graft/nuget-energypriceservice'
 
 // metrics:begin graft.getPrice.client
-export function configureGraftHost(host) {
-  GraftConfig.host = host
-  GraftConfig.stateless = true
-}
-
 export function graftGetPrice() {
   return EnergyPriceService.getPrice()
 }

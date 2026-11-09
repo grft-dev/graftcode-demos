@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import './App.css'
 import { Button, Checkbox, Select } from '@graftcode/design-system'
-import { configureGraftHost, graftGetPrice } from './clients/graftClient'
+import { graftGetPrice } from './clients/graftClient'
 import { callGrpcGetPrice, streamGrpcPrices } from './clients/grpcClient'
 import { fetchEnergyPrice } from './clients/restClient'
 import { AiTokenCost } from './AiTokenCost'
 import {
-  applyGraftConfigHost,
+  configureGraftForHttpMode,
   HTTP_BACKEND_MODE_OPTIONS,
   isHttpBackendSwitchAvailable,
   loadHttpBackendMode,
+  loadRestHttpMode,
   resolveHttpBackendGrpcUrl,
   resolveHttpBackendRestUrl,
   saveHttpBackendMode,
@@ -133,7 +134,7 @@ function App() {
   const [excludeNetworkLatency, setExcludeNetworkLatency] = useState(true)
   const [showLatencyExplanation, setShowLatencyExplanation] = useState(false)
 
-  const [benchmarkCount, setBenchmarkCount] = useState(1000)
+  const [benchmarkCount, setBenchmarkCount] = useState(100)
   const [benchmarkCountUsed, setBenchmarkCountUsed] = useState(null)
   const [isRunningBenchmark, setIsRunningBenchmark] = useState(false)
   const [benchmarkError, setBenchmarkError] = useState(null)
@@ -152,26 +153,24 @@ function App() {
   const [integrationTech, setIntegrationTech] = useState('REST')
 
   const httpBackendSwitchVisible = isHttpBackendSwitchAvailable()
-  const [httpBackendMode, setHttpBackendMode] = useState(() => loadHttpBackendMode())
+  const [httpBackendModePicker, setHttpBackendModePicker] = useState(() => loadRestHttpMode())
+  const httpBackendMode = httpBackendSwitchVisible ? httpBackendModePicker : loadHttpBackendMode()
+
+  useLayoutEffect(() => {
+    configureGraftForHttpMode(httpBackendMode)
+  }, [httpBackendMode])
+
   const restBaseUrl = resolveHttpBackendRestUrl(httpBackendMode)
   const grpcBaseUrl = resolveHttpBackendGrpcUrl(httpBackendMode)
 
   const onHttpBackendModeChange = (value) => {
-    setHttpBackendMode(value)
     saveHttpBackendMode(value)
+    setHttpBackendModePicker(value)
   }
-
-  useEffect(() => {
-    try {
-      configureGraftHost(applyGraftConfigHost(httpBackendMode))
-      setGraftError(null)
-    } catch (err) {
-      setGraftError(err?.message || 'Failed to configure the Graft host')
-    }
-  }, [httpBackendMode])
 
   const getEnergyPrice = async () => {
     try {
+      configureGraftForHttpMode(httpBackendMode)
       const calculatedPrice = await graftGetPrice()
       setPrice(calculatedPrice)
     } catch (err) {
@@ -304,6 +303,7 @@ function App() {
       patchBenchmarkPath('grpcStream', { phase: 'done', current: count })
 
       const graftCall = async () => {
+        configureGraftForHttpMode(httpBackendMode)
         await graftGetPrice()
       }
       patchBenchmarkPath('graftcode', { phase: 'baseline' })

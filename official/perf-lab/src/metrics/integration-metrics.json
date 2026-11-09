@@ -51,7 +51,7 @@
     "cl100k_base",
     "o200k_base"
   ],
-  "inputsHash": "e97fda4e28860c4ee336ebf795a49b0f685476beabace27b2a9c608f49d0bfd1",
+  "inputsHash": "8796bba5f50d88397c3dc30580855f6bb8b64936668b05c6c28405f82d230a53",
   "label": "Tokens of the handwritten integration code shown below. Not a live assistant session.",
   "scopes": {
     "getPrice": {
@@ -61,12 +61,12 @@
           "counted": [
             {
               "id": "graft.getPrice.client",
-              "lines": 7,
+              "lines": 3,
               "path": "official/perf-lab/src/clients/graftClient.js",
-              "source": "export function configureGraftHost(host) {\n  GraftConfig.host = host\n  GraftConfig.stateless = true\n}\n\nexport function graftGetPrice() {\n  return EnergyPriceService.getPrice()\n}",
+              "source": "export function graftGetPrice() {\n  return EnergyPriceService.getPrice()\n}",
               "title": "configure host and getPrice",
-              "tokensCl100k": 42,
-              "tokensO200k": 43
+              "tokensCl100k": 15,
+              "tokensO200k": 16
             }
           ],
           "dependency": [
@@ -103,10 +103,10 @@
           "domain": [],
           "excluded": [],
           "extra": [],
-          "lines": 7,
+          "lines": 3,
           "name": "Graftcode",
-          "tokensCl100k": 42,
-          "tokensO200k": 43
+          "tokensCl100k": 15,
+          "tokensO200k": 16
         },
         "grpc": {
           "counted": [
@@ -444,18 +444,18 @@
       },
       "versus": {
         "grpc": {
-          "linesPercentFewer": 84.1,
-          "linesTimes": 6.3,
-          "tokensCl100kPercentFewer": 88.5,
-          "tokensCl100kTimes": 8.7,
-          "tokensO200kPercentFewer": 88.1
+          "linesPercentFewer": 93.2,
+          "linesTimes": 14.7,
+          "tokensCl100kPercentFewer": 95.9,
+          "tokensCl100kTimes": 24.3,
+          "tokensO200kPercentFewer": 95.6
         },
         "rest": {
-          "linesPercentFewer": 75.9,
-          "linesTimes": 4.1,
-          "tokensCl100kPercentFewer": 75.9,
-          "tokensCl100kTimes": 4.1,
-          "tokensO200kPercentFewer": 76.1
+          "linesPercentFewer": 89.7,
+          "linesTimes": 9.7,
+          "tokensCl100kPercentFewer": 91.4,
+          "tokensCl100kTimes": 11.6,
+          "tokensO200kPercentFewer": 91.1
         }
       }
     },
@@ -466,12 +466,12 @@
           "counted": [
             {
               "id": "graft.getPrice.client",
-              "lines": 7,
+              "lines": 3,
               "path": "official/perf-lab/src/clients/graftClient.js",
-              "source": "export function configureGraftHost(host) {\n  GraftConfig.host = host\n  GraftConfig.stateless = true\n}\n\nexport function graftGetPrice() {\n  return EnergyPriceService.getPrice()\n}",
+              "source": "export function graftGetPrice() {\n  return EnergyPriceService.getPrice()\n}",
               "title": "configure host and getPrice",
-              "tokensCl100k": 42,
-              "tokensO200k": 43
+              "tokensCl100k": 15,
+              "tokensO200k": 16
             },
             {
               "id": "graft.history.client",
@@ -517,10 +517,10 @@
           "domain": [],
           "excluded": [],
           "extra": [],
-          "lines": 10,
+          "lines": 6,
           "name": "Graftcode",
-          "tokensCl100k": 61,
-          "tokensO200k": 63
+          "tokensCl100k": 34,
+          "tokensO200k": 36
         },
         "grpc": {
           "counted": [
@@ -1002,18 +1002,18 @@
       },
       "versus": {
         "grpc": {
-          "linesPercentFewer": 87.5,
-          "linesTimes": 8,
-          "tokensCl100kPercentFewer": 90.8,
-          "tokensCl100kTimes": 10.8,
-          "tokensO200kPercentFewer": 90.5
+          "linesPercentFewer": 92.5,
+          "linesTimes": 13.3,
+          "tokensCl100kPercentFewer": 94.9,
+          "tokensCl100kTimes": 19.4,
+          "tokensO200kPercentFewer": 94.6
         },
         "rest": {
-          "linesPercentFewer": 96.9,
-          "linesTimes": 31.8,
-          "tokensCl100kPercentFewer": 97.6,
-          "tokensCl100kTimes": 40.9,
-          "tokensO200kPercentFewer": 97.5
+          "linesPercentFewer": 98.1,
+          "linesTimes": 53,
+          "tokensCl100kPercentFewer": 98.6,
+          "tokensCl100kTimes": 73.3,
+          "tokensO200kPercentFewer": 98.6
         }
       }
     }
