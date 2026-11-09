@@ -134,7 +134,7 @@ function App() {
   const [excludeNetworkLatency, setExcludeNetworkLatency] = useState(true)
   const [showLatencyExplanation, setShowLatencyExplanation] = useState(false)
 
-  const [benchmarkCount, setBenchmarkCount] = useState(1000)
+  const [benchmarkCount, setBenchmarkCount] = useState(100)
   const [benchmarkCountUsed, setBenchmarkCountUsed] = useState(null)
   const [isRunningBenchmark, setIsRunningBenchmark] = useState(false)
   const [benchmarkError, setBenchmarkError] = useState(null)
