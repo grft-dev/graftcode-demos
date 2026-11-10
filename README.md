@@ -25,6 +25,7 @@ from the perf-lab system above.
 |------|-------|
 | [dotnet-react-frontend](community/dotnet-react-frontend/) | React frontend calling a .NET backend as a typed Graft |
 | [js-mcp-backend](community/js-mcp-backend/) | Plain JS module auto-exposed to Claude as MCP tools |
+| [loan-eligibility-engine](community/loan-eligibility-engine/) | Plain Java class exposed as a remotely callable service — no HTTP framework required |
 | [py-ai-backend](community/py-ai-backend/) | Python service exposed as an MCP server (local + gateway approaches) |
 | [py-node-loan-calculator](community/py-node-loan-calculator/) | Node storefront calling a Python method as a typed Graft (cross-language, runtime auto-detection) |
 
@@ -45,6 +46,7 @@ how these differ from the Community demos above.
 community/                     External-contributor demos (see CONTRIBUTING.md)
   dotnet-react-frontend/      React → .NET Graft
   js-mcp-backend/             JS module → MCP tools
+  loan-eligibility-engine/    Java class → callable service (no framework)
   py-ai-backend/              Python service → MCP server
   py-node-loan-calculator/    Node storefront → Python Graft
 

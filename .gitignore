@@ -73,6 +73,9 @@ official/electric-company-be/GMA/
 official/electric-company-be/GVFE/
 _Hypertube*.txt
 
+# Maven (Java demos)
+community/loan-eligibility-engine/target/
+
 # Binary / build artefacts (graft tooling)
 Binaries/
 GMA/

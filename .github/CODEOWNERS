@@ -14,6 +14,9 @@
 # --- Community Demos (external contributions) -------------------------------
 /community/ @nomadicmehul
 
+# Community demo with its own owner (more specific line — last match wins)
+/community/loan-eligibility-engine/  @Akshat111111
+
 # --- Official Demos (full / reference systems) -------------------------------
 /official/  @graftcode-team
 

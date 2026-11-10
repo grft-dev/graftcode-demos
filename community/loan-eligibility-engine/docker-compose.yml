@@ -1,0 +1,26 @@
+services:
+  loan-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: graftcode-loan-eligibility-engine:1.0.0
+    container_name: graftcode_loan_engine
+    ports:
+      # Port 8080→80: Graftcode Gateway RPC endpoint AND the Vision UI — open
+      # http://localhost:8080/GV here (the WebSocket backend listens on port 80).
+      - "8080:80"
+      # Port 8081→81: secondary port; serves the Vision page but not the
+      # WebSocket backend, so the UI cannot load data from here.
+      - "8081:81"
+    restart: unless-stopped
+
+    # ── Optional: Enable Graftcode Portal integration ──────────────────────
+    # Uncomment and set your project key to register this gateway with the
+    # Graftcode portal for stable URLs, access control, and MCP endpoints.
+    #
+    # environment:
+    #   - GRAFTCODE_PROJECT_KEY=your_project_key_here
+    #
+    # Then modify the Dockerfile CMD to:
+    #   CMD ["gg", "--modules", "/usr/app/target/loan-eligibility-engine-1.0.0.jar",
+    #        "--projectKey", "${GRAFTCODE_PROJECT_KEY}"]

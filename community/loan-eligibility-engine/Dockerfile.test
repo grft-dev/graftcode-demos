@@ -1,0 +1,14 @@
+# Dockerfile specifically for running JUnit tests in CI or Docker environments.
+# This runs the full test suite and exits — it does NOT start Graftcode Gateway.
+#
+# Usage:
+#   docker build -f Dockerfile.test -t loan-engine-tests .
+#   docker run --rm loan-engine-tests
+FROM maven:3.9-eclipse-temurin-21
+
+WORKDIR /usr/app
+
+COPY . /usr/app/
+
+# Run all tests — exit code is 0 on success, non-zero on failure
+CMD ["mvn", "test"]
