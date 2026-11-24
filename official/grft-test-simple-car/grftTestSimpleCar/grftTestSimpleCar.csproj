@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+	  <!-- NuGet metadata -->
+	  <PackageId>grft-test-simple-car-e2e</PackageId>
+	  <AssemblyName>grft-test-simple-car-e2e</AssemblyName>
+	  <RootNamespace>grftTestSimpleCar</RootNamespace>
+	  <Version>0.2.1</Version>
+	  <Authors>graftcode</Authors>
+	  <Company>Graftcode</Company>
+	  <Description>Simple car abstractions for e2e testing.</Description>
+	  <PackageTags>car;sample;e2e</PackageTags>
+	  <RepositoryUrl>https://github.com/yourname/grftTestSimpleCar</RepositoryUrl>
+	  <RepositoryType>git</RepositoryType>
+	  <PackageReadmeFile>README.md</PackageReadmeFile>
+	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+	  <!-- Symbols / reproducible builds -->
+	  <PublishRepositoryUrl>true</PublishRepositoryUrl>
+	  <EmbedUntrackedSources>true</EmbedUntrackedSources>
+	  <DebugType>portable</DebugType>
+	  <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+	  <IncludeSymbols>true</IncludeSymbols>
+	  <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+	  <None Include="README.md" Pack="true" PackagePath="\" />
+	  <None Include="LICENSE"  Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
